@@ -1,0 +1,16 @@
+# ── Backend + IA ──────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# Frontend
+gradio>=4.0.0
+
+# Motor IA Primario (Gemini)
+google-generativeai>=0.3.0
+
+# Fallback IA (OpenAI + DuckDuckGo)
+openai>=1.0.0
+duckduckgo-search>=4.0.0
+
+# Utilidades
+pandas>=2.0.0
+httpx>=0.25.0

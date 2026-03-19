@@ -6,6 +6,16 @@ Built for the sales team at **Mac Practice**, a dental practice management softw
 
 ---
 
+## Write-Up — Track B: Sales & Outreach Agent
+
+The core problem I set out to solve was simple but painful: Mac Practice's sales reps were spending 30–45 minutes per prospect just doing research — manually searching clinic websites, scrolling LinkedIn, guessing what software they use, and then writing an email from scratch that often felt generic. At that pace, personalized outreach at scale was impossible. I built this agent to compress the entire discovery-to-draft workflow into under 60 seconds, with output that reads like a rep did the work themselves — because the AI is grounding every sentence in real signals: the clinic's job postings, their Google reviews, their decision maker's LinkedIn, and the specific pain points of whichever competitor software they're currently using.
+
+For the architecture, I made a deliberate choice to use Google Gemini with native Search Grounding as the primary engine rather than building a retrieval pipeline myself — Gemini searches the real web internally as part of generation, which means zero scraping infrastructure, zero rate-limiting on my side, and results that are current. I paired it with an OpenAI + DuckDuckGo fallback that activates transparently when Gemini hits its limits, so the system stays operational even on a free API tier. The competitor detection layer was a key design decision: instead of a generic pitch, every generated email automatically loads a playbook specific to Dentrix, Eaglesoft, Open Dental, or Curve Dental — turning competitor pain points into Mac Practice's opening angle. The full pipeline — research, score, draft, review, send — runs in a single-page Gradio interface with a Kanban board to track every prospect across five stages.
+
+The natural next steps I see are: integrating with HubSpot so researched prospects and approved outreach sync automatically into the CRM without manual data entry; adding a one-click WhatsApp send button that opens a pre-filled message directly to the prospect's number; building a sales rep chatbot that lets reps ask "what should I say to this clinic?" or "what objections will they raise?" and get coaching grounded in the prospect's actual profile; and expanding the competitor database with real pricing and churn data so the talking points get sharper. The foundation is already built to support all of it — the prospect model, the pipeline state, and the AI layer are all in place.
+
+---
+
 ## What It Does
 
 1. **Research** — Enter a clinic name, website, LinkedIn URL, Google Maps link, or phone number. The AI searches the real web across 8 source types (clinic website, Google Business, LinkedIn, job boards, dental directories, social media, news, competitor mentions) and compiles a structured 21-field intelligence profile.

@@ -83,8 +83,13 @@ def build_app() -> gr.Blocks:
             outputs=[batch_visible, batch_group],
         )
 
-        # "Back to Pipeline" → always hide workflow
+        # "Back to Pipeline" → always hide workflow (from send stage)
         workflow_handles["btn_back_to_pipeline"].click(
+            fn=lambda: (False, gr.update(visible=False)),
+            outputs=[workflow_visible, workflow_section],
+        )
+        # "← Pipeline" on profile stage → also hide workflow
+        workflow_handles["btn_back_to_input"].click(
             fn=lambda: (False, gr.update(visible=False)),
             outputs=[workflow_visible, workflow_section],
         )

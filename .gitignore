@@ -47,3 +47,6 @@ desktop.ini
 
 # Jupyter
 .ipynb_checkpoints/
+
+implementation_plan.md
+SPEC.md

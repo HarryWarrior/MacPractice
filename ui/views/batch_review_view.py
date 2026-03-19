@@ -8,6 +8,7 @@ import urllib.parse
 import gradio as gr
 
 from ui.theme import C
+from ui.views.workflow_view import _profile_html
 from app.services.outreach_service import do_outreach
 from app.services.email_service import send_real_email
 from app.services.storage_service import storage
@@ -259,8 +260,8 @@ def build_batch_review(prospects_state):
         if not queue or idx >= len(queue):
             total = len(queue) if queue else 0
             yield (
-                gr.update(value=""),
-                gr.update(value=""),
+                gr.update(value=""),   # clear progress
+                gr.update(value=""),   # clear profile
                 gr.update(visible=False, value=""),
                 gr.update(visible=False),
                 gr.update(visible=True),
@@ -274,14 +275,15 @@ def build_batch_review(prospects_state):
             )
             return
 
-        total        = len(queue)
+        total         = len(queue)
         prospect_dict = queue[idx]
-        prospect     = Prospect.from_dict(prospect_dict)
+        prospect      = Prospect.from_dict(prospect_dict)
+        profile       = _profile_html(prospect_dict)
 
-        # Show loading state
+        # Show prospect profile + loading state
         yield (
             gr.update(value=_progress_html(idx + 1, total)),
-            gr.update(value=_prospect_summary_html(prospect_dict)),
+            gr.update(value=profile),
             gr.update(visible=True, value=f"Generating outreach for {prospect.clinic_name}..."),
             gr.update(visible=False),
             gr.update(visible=False),
@@ -294,14 +296,14 @@ def build_batch_review(prospects_state):
             gr.update(value=""),
         )
 
-        # Stream outreach generation
+        # Stream outreach generation — profile stays visible
         draft_data = None
         for log_text, draft in do_outreach(prospect):
             if draft is not None:
                 draft_data = draft
             yield (
                 gr.update(),
-                gr.update(),
+                gr.update(),           # keep profile unchanged
                 gr.update(value=log_text),
                 gr.update(),
                 gr.update(),
@@ -314,7 +316,7 @@ def build_batch_review(prospects_state):
                 gr.update(),
             )
 
-        # Show draft
+        # Show draft — profile stays visible above
         if draft_data:
             subjects      = draft_data.get("subject_options", [])
             first_subject = subjects[0] if subjects else ""
@@ -322,7 +324,7 @@ def build_batch_review(prospects_state):
             phone         = draft_data.get("_phone", "")
             yield (
                 gr.update(),
-                gr.update(),
+                gr.update(),           # keep profile
                 gr.update(visible=False, value=""),
                 gr.update(visible=True),
                 gr.update(visible=False),

@@ -184,12 +184,6 @@ def _input_stage_html(active_mode: str = "name") -> str:
         for m in INPUT_MODES
     )
     sources = "".join(f'<span class="source-badge">{s}</span>' for s in SOURCES)
-    examples = "".join(f"""
-<div class="example-card">
-    <div class="example-card-icon">{ex['icon']}</div>
-    <div class="example-card-name">{ex['name']}</div>
-    <div class="example-card-sub">{ex['sub']}</div>
-</div>""" for ex in EXAMPLES)
 
     return f"""
 <div style="margin-bottom:14px;">
@@ -198,11 +192,6 @@ def _input_stage_html(active_mode: str = "name") -> str:
         <b style="color:{C['text_muted']};">Sources searched automatically:</b>
     </div>
     <div class="source-panel">{sources}</div>
-</div>
-<div style="margin-top:16px;">
-    <div style="font-size:11px; font-weight:700; letter-spacing:1px; color:{C['text_dim']};
-                text-transform:uppercase; margin-bottom:8px;">Quick Examples</div>
-    <div class="example-cards">{examples}</div>
 </div>
 """
 
@@ -457,9 +446,32 @@ def _profile_html(data: dict) -> str:
 </div>
 """
 
+    # ── Links investigated ─────────────────────────────────────
+    links_section = ""
+    if links_found:
+        link_items = "".join(
+            f'<div style="margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
+            f'style="color:{C["accent"]}; font-size:11px; text-decoration:none; '
+            f'word-break:break-all; white-space:normal;">'
+            f'🔗 {url}</a></div>'
+            for url in links_found if url and url.startswith("http")
+        )
+        if link_items:
+            links_section = f"""
+<div style="margin-top:10px; padding:12px; background:{C['surface']};
+            border:1px solid {C['border']}; border-radius:10px;">
+    <div style="font-size:10px; font-weight:700; letter-spacing:1px; color:{C['text_dim']};
+                text-transform:uppercase; margin-bottom:8px;">
+        🔗 Links Investigated ({len([u for u in links_found if u and u.startswith('http')])})
+    </div>
+    <div style="max-height:180px; overflow-y:auto; padding-right:4px;">{link_items}</div>
+</div>
+"""
+
     return (header + contact_section + metrics_row + competitor_section +
             insights_grid + talking_section + reviews_section +
-            hiring_section + red_section + sources_section)
+            hiring_section + red_section + sources_section + links_section)
 
 
 # ──────────────────────────────────────────────
@@ -877,6 +889,12 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                     variant="primary",
                     elem_classes=["gr-button", "primary"],
                 )
+                gr.HTML(f'<div style="font-size:11px; font-weight:700; letter-spacing:1px; color:{C["text_dim"]}; text-transform:uppercase; margin:10px 0 6px;">Quick Examples</div>')
+                with gr.Row():
+                    example_btns = [
+                        gr.Button(f"{ex['icon']} {ex['name']}", size="sm", variant="secondary", elem_classes=["gr-button", "secondary"])
+                        for ex in EXAMPLES
+                    ]
             with gr.Column(scale=1):
                 gr.HTML(f"""
 <div style="padding:16px 0 0;">
@@ -974,6 +992,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                         lines=1,
                         elem_classes=["mp-input"],
                     )
+                    recipient_warning = gr.HTML(value="")
                     draft_subject_input = gr.Textbox(
                         label="Subject",
                         lines=1,
@@ -1096,6 +1115,11 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         return [gr.update(visible=(g == active)) for g in all_stage_groups]
 
     # ════ EVENTOS ════════════════════════════════════════════
+
+    # ── Example buttons → fill clinic_input ──────────────────
+    for _btn, _ex in zip(example_btns, EXAMPLES):
+        _val = _ex["value"]
+        _btn.click(fn=lambda v=_val: v, outputs=[clinic_input], queue=False)
 
     # ── Research: pre-click (immediate feedback) + generator ─
     def _start_research_ui():
@@ -1231,7 +1255,23 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
     )
 
     # ── Approve ───────────────────────────────────────────────
-    def _approve_draft(draft, subject, body):
+    def _approve_draft(draft, subject, body, recipient):
+        if not (recipient or "").strip():
+            warn_html = (
+                f'<div style="margin-top:6px; padding:8px 12px; border-radius:8px; '
+                f'border:1.5px solid {C["amber"]}; background:rgba(245,158,11,0.08); '
+                f'font-size:12px; font-weight:600; color:{C["amber"]};">'
+                f'⚠ Enter a recipient email above before approving.</div>'
+            )
+            return (
+                gr.update(),             # draft_preview_display — no change
+                gr.update(),             # draft_state — no change
+                gr.update(),             # approved_state — no change
+                gr.update(),             # edit_mode_group — stay visible
+                gr.update(),             # approved_mode_group — stay hidden
+                gr.update(),             # approved_display — no change
+                gr.update(value=warn_html),  # recipient_warning — show warning
+            )
         updated = dict(draft or {})
         updated["_approved_subject"] = subject
         updated["_approved_body"]    = body
@@ -1242,15 +1282,23 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
             gr.update(visible=False),  # edit_mode_group
             gr.update(visible=True),   # approved_mode_group
             _approved_email_html(updated, subject, body),
+            gr.update(value=""),       # recipient_warning — clear
         )
 
     btn_approve.click(
         fn=_approve_draft,
-        inputs=[draft_state, draft_subject_input, draft_body_input],
+        inputs=[draft_state, draft_subject_input, draft_body_input, recipient_input],
         outputs=[
             draft_preview_display, draft_state, approved_state,
             edit_mode_group, approved_mode_group, approved_display,
+            recipient_warning,
         ],
+    )
+    # Clear warning when user starts typing the recipient
+    recipient_input.change(
+        fn=lambda _: gr.update(value=""),
+        inputs=[recipient_input],
+        outputs=[recipient_warning],
     )
 
     # ── Edit (post-approval: return to edit mode) ─────────────
@@ -1396,6 +1444,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         "btn_edit":              btn_edit,
         "btn_create_gmail":      btn_create_gmail,
         "approved_display":      approved_display,
+        "btn_back_to_input":     btn_back_to_input,
         "btn_back_to_pipeline":  btn_back_to_pipeline,
         "send_display":          send_display,
         "stepper_display":       stepper_display,

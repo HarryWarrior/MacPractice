@@ -4,8 +4,8 @@ python-dotenv>=1.0.0
 # Frontend
 gradio>=4.0.0
 
-# Motor IA Primario (Gemini)
-google-generativeai>=0.3.0
+# Motor IA Primario (Gemini — nuevo SDK oficial)
+google-genai>=1.0.0
 
 # Fallback IA (OpenAI + DuckDuckGo)
 openai>=1.0.0

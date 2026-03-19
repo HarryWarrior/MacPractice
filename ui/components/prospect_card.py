@@ -1,7 +1,8 @@
 # ui/components/prospect_card.py
 # Renderiza una ProspectCard para el Kanban board del Dashboard
 
-from ui.theme import C, badge_html, score_ring_svg, PRIORITY_COLORS, COMPETITOR_COLORS
+from ui.theme import C, badge_html, score_ring_svg, PRIORITY_COLORS
+from ui.components.competitor_card import competitor_badge_html
 
 
 def prospect_card_html(prospect: dict) -> str:
@@ -21,13 +22,8 @@ def prospect_card_html(prospect: dict) -> str:
     priority_color = PRIORITY_COLORS.get(priority, C["amber"])
     priority_badge = badge_html(priority.upper(), priority_color, small=True)
 
-    # Competitor badge (solo si es competidor conocido y no "unknown"/"paper")
-    competitor_badge = ""
-    sw_lower = current_software.lower()
-    for sw_key, color in COMPETITOR_COLORS.items():
-        if sw_key in sw_lower and sw_key not in ("unknown", "paper-based"):
-            competitor_badge = badge_html(current_software, color, small=True)
-            break
+    # Competitor badge — usa la DB real del Agente A
+    competitor_badge = competitor_badge_html(current_software, small=True)
 
     # Mini score ring (28x28)
     ring_html = score_ring_svg(fit_score, size=28) if fit_score is not None else ""
@@ -40,8 +36,16 @@ def prospect_card_html(prospect: dict) -> str:
         meta_parts.append(f"{practitioners} prac.")
     meta = " · ".join(meta_parts)
 
+    # Drag & drop — inline handlers (Gradio strips <script> but keeps event attrs)
+    drag_handlers = (
+        f'draggable="true" '
+        f'ondragstart="event.dataTransfer.setData(\'text/plain\',\'{pid}\'); '
+        f'event.currentTarget.classList.add(\'dragging\')" '
+        f'ondragend="event.currentTarget.classList.remove(\'dragging\')"'
+    ) if pid else ""
+
     return f"""
-<div class="prospect-card" data-id="{pid}">
+<div class="prospect-card" data-id="{pid}" {drag_handlers}>
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; margin-bottom:3px;">
         <span class="prospect-name" title="{name}">{name}</span>
         {ring_html}

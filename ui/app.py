@@ -5,7 +5,6 @@
 import os
 import gradio as gr
 from dotenv import load_dotenv
-
 from ui.theme import CSS, C
 from ui.views.dashboard_view import build_dashboard_tab, render_dashboard_html
 from ui.views.workflow_view import build_workflow_tab

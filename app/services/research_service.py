@@ -1,9 +1,11 @@
 """
-Servicio de Investigación de Prospectos.
+Servicio de Investigación de Prospectos — Orquestador Real.
 Ref: SPEC.md § 4.1, § 4.3, § 9.3, § 10.1.
 
-En la FASE 1 contiene el mock_research_generator.
-En la FASE 2 se conectará a Gemini + Fallback reales.
+Flujo: try Gemini (con Search Grounding) → except → fallback OpenAI+DDG.
+Todas las funciones usan generadores (yield) para logs en tiempo real.
+
+Nota: La generación de outreach ahora vive en outreach_service.py.
 """
 
 import time
@@ -14,6 +16,8 @@ from typing import Generator
 from app.models.prospect import Prospect
 from app.models.competitor import detect_competitor
 from app.agents.prompts import build_research_query
+from app.agents.gemini_agent import call_gemini_research
+from app.agents.openai_agent import call_openai_research
 from app.utils.logger import LogAccumulator, create_research_log_steps
 from app.utils.json_parser import (
     parse_llm_json,
@@ -22,171 +26,245 @@ from app.utils.json_parser import (
 
 
 # ──────────────────────────────────────────────────────────
-# MOCK: Datos simulados para la Fase 1
+# Investigación Principal (Gemini → Fallback → Parse → Prospect)
 # ──────────────────────────────────────────────────────────
-_MOCK_RESEARCH_DATA = {
-    "clinic_name": "Bright Smile Dental",
-    "location": "Austin, TX",
-    "type": "dental",
-    "practitioners": 6,
-    "staff_estimate": 18,
-    "specialty": "General Dentistry, Cosmetic, Orthodontics",
-    "services": [
-        "General Dentistry",
-        "Teeth Whitening",
-        "Invisalign",
-        "Dental Implants",
-        "Emergency Care",
-    ],
-    "years_in_practice": 12,
-    "insurance_accepted": [
-        "Delta Dental", "Cigna", "Aetna", "MetLife",
-    ],
-    "current_software": "Dentrix",
-    "software_confidence": "high",
-    "software_signals": (
-        "Job posting on Indeed mentions 'Dentrix experience preferred'. "
-        "LinkedIn employee endorsement also lists Dentrix."
-    ),
-    "pain_points": [
-        "Multiple Google reviews mention long wait times for billing",
-        "Glassdoor review from staff mentions outdated software",
-        "Patient review cites difficulty with online scheduling",
-    ],
-    "growth_signals": [
-        "Hiring hygienist and front desk (Indeed, posted last week)",
-        "New office renovation photos on Instagram (Feb 2026)",
-        "Added pediatric dentistry service this year",
-    ],
-    "decision_maker": {
-        "name": "Dr. Sarah Mitchell",
-        "role": "Owner / Lead Dentist",
-        "linkedin": "https://linkedin.com/in/sarahmitchelldds",
-        "email_pattern": "smitchell@brightsmiledental.com",
-    },
-    "online_presence": {
-        "website": "https://brightsmiledental.com",
-        "google_rating": 4.6,
-        "review_count": 287,
-        "social_active": True,
-        "facebook": "https://facebook.com/brightsmiledental",
-        "instagram": "@brightsmiledental",
-    },
-    "recent_reviews_summary": (
-        "Patients praise the friendly staff and modern office. "
-        "However, several recent reviews mention frustration with "
-        "billing and the online appointment system being down."
-    ),
-    "hiring_signals": [
-        "Dental Hygienist — Indeed, posted 5 days ago",
-        "Front Desk Coordinator — Indeed, posted 12 days ago",
-    ],
-    "fit_score": 8,
-    "fit_reasoning": (
-        "6-practitioner clinic in growth mode (hiring 2 roles). "
-        "Currently on Dentrix with documented billing pain points. "
-        "Active social media presence suggests tech-forward mindset."
-    ),
-    "priority": "hot",
-    "best_angle": (
-        "Lead with billing pain from reviews + Dentrix switching"
-    ),
-    "talking_points": [
-        "Their patients are complaining about billing — Mac Practice automates this",
-        "They're hiring 2 new staff — perfect time to switch before onboarding",
-        "Dr. Mitchell is active on LinkedIn — warm intro opportunity",
-    ],
-    "red_flags": [
-        "May have recently renewed Dentrix contract (check timing)",
-    ],
-    "sources_used": [
-        "Google Business (4.6★, 287 reviews)",
-        "Clinic website (brightsmiledental.com)",
-        "LinkedIn (company page + Dr. Mitchell profile)",
-        "Indeed (2 active job postings)",
-        "Instagram (@brightsmiledental, active)",
-        "Facebook (page with 1.2k followers)",
-    ],
-}
 
-
-def mock_research_generator(
+def do_research(
     user_input: str,
     mode: str = "name",
-) -> Generator[tuple[str, dict | None], None, None]:
+) -> Generator[tuple[str, Prospect | None], None, None]:
     """
-    Generador MOCK que simula los pasos de investigación.
-    Produce (log_text, research_data | None) en cada yield.
+    Orquestador principal de investigación de un prospecto.
 
-    En cada paso produce el log actualizado.
-    Al final produce los datos de research completos.
+    Flujo:
+    1. Construye el query según el modo de input.
+    2. Intenta con Gemini (Search Grounding).
+    3. Si falla, activa el fallback de OpenAI + DuckDuckGo.
+    4. Parsea el JSON de la respuesta.
+    5. Detecta competidor y crea el Prospect.
 
-    Uso en Gradio:
-        for log_text, data in mock_research_generator("Bright Smile Dental"):
-            log_output.value = log_text
-            if data is not None:
-                # Research completo, procesar datos
+    Yields:
+        (log_text, prospect | None)
+        El Prospect se produce solo al final cuando está completo.
     """
     log = LogAccumulator()
-    steps = create_research_log_steps()
 
-    # Log de inicio
-    yield log.add("start", f"Iniciando investigación para: {user_input}..."), None
-    time.sleep(0.5)
+    # ── Inicio ────────────────────────────────────────
+    yield log.add(
+        "start",
+        f"Iniciando investigación para: {user_input}..."
+    ), None
 
     query = build_research_query(user_input, mode)
     yield log.add("info", f"Modo de búsqueda: {mode}"), None
     time.sleep(0.3)
 
-    # Simular los 6 pasos de progreso
-    for step in steps:
+    # ── Simular pasos de progreso visual ──────────────
+    steps = create_research_log_steps()
+    for step in steps[:3]:
         yield log.add(step["icon"], step["message"]), None
-        # Delay aleatorio entre 500-900ms para sensación de progreso real
-        time.sleep(random.uniform(0.5, 0.9))
+        time.sleep(random.uniform(0.3, 0.6))
 
-    # Simular detección de competidor
-    mock_data = _MOCK_RESEARCH_DATA.copy()
-    # Personalizar el nombre de la clínica al input del usuario
-    mock_data["clinic_name"] = user_input.split(",")[0].strip()
+    # ── Intento 1: Gemini ─────────────────────────────
+    raw_response = None
+    engine_used = "none"
 
-    competitor = detect_competitor(mock_data["current_software"])
+    try:
+        yield log.add(
+            "search",
+            "Conectando con Google Gemini + Search Grounding..."
+        ), None
+
+        for log_text, response in call_gemini_research(query, log):
+            if response is not None:
+                raw_response = response
+            yield log_text, None
+
+        if raw_response:
+            engine_used = "gemini"
+
+    except Exception as e:
+        yield log.add(
+            "warning",
+            f"Gemini falló: {str(e)[:100]}. Activando fallback..."
+        ), None
+        time.sleep(0.3)
+
+        # ── Intento 2: OpenAI + DuckDuckGo ────────────
+        try:
+            for log_text, response in call_openai_research(query, log):
+                if response is not None:
+                    raw_response = response
+                yield log_text, None
+
+            if raw_response:
+                engine_used = "openai"
+
+        except Exception as e2:
+            yield log.add(
+                "error",
+                f"Fallback también falló: {str(e2)[:100]}"
+            ), None
+
+    # ── Pasos finales de progreso visual ──────────────
+    for step in steps[3:]:
+        yield log.add(step["icon"], step["message"]), None
+        time.sleep(random.uniform(0.2, 0.4))
+
+    # ── Parsear respuesta ─────────────────────────────
+    if raw_response:
+        try:
+            research_data = parse_llm_json(raw_response)
+            yield log.add(
+                "success",
+                f"JSON parseado correctamente ({engine_used})."
+            ), None
+        except ValueError as parse_err:
+            yield log.add(
+                "warning",
+                f"Error parseando JSON: {str(parse_err)[:80]}. "
+                "Usando datos parciales..."
+            ), None
+            research_data = create_research_fallback(
+                user_input, raw_response
+            )
+    else:
+        yield log.add(
+            "error",
+            "No se obtuvo respuesta de ningún motor de IA."
+        ), None
+        research_data = create_research_fallback(user_input)
+
+    # ── Detectar competidor ───────────────────────────
+    current_sw = research_data.get("current_software", "Unknown")
+    competitor = detect_competitor(current_sw)
+
     if competitor:
         key, profile = competitor
         yield log.add(
             "success",
-            f"Competidor detectado en base de datos: {profile['name']}."
+            f"Competidor detectado: {profile['name']}."
         ), None
     else:
         yield log.add("info", "No se detectó competidor conocido."), None
 
-    time.sleep(0.3)
+    # ── Crear el Prospect completo ────────────────────
+    now_iso = datetime.now(timezone.utc).isoformat()
 
-    # Resultado final
+    prospect = Prospect(
+        input=user_input,
+        input_mode=mode,
+        clinic_name=research_data.get("clinic_name", user_input.split(",")[0].strip()),
+        location=research_data.get("location", "Unknown"),
+        type=research_data.get("type", "dental"),
+        practitioners=int(research_data.get("practitioners", 0)),
+        staff_estimate=int(research_data.get("staff_estimate", 0)),
+        specialty=research_data.get("specialty", ""),
+        services=research_data.get("services", []),
+        years_in_practice=int(research_data.get("years_in_practice", 0)),
+        insurance_accepted=research_data.get("insurance_accepted", []),
+        current_software=research_data.get("current_software", "Unknown"),
+        software_confidence=research_data.get("software_confidence", "low"),
+        software_signals=research_data.get("software_signals", ""),
+        pain_points=research_data.get("pain_points", []),
+        growth_signals=research_data.get("growth_signals", []),
+        decision_maker=research_data.get("decision_maker", {}),
+        online_presence=research_data.get("online_presence", {}),
+        recent_reviews_summary=research_data.get("recent_reviews_summary", ""),
+        hiring_signals=research_data.get("hiring_signals", []),
+        fit_score=int(research_data.get("fit_score", 5)),
+        fit_reasoning=research_data.get("fit_reasoning", ""),
+        priority=research_data.get("priority", "warm"),
+        best_angle=research_data.get("best_angle", ""),
+        talking_points=research_data.get("talking_points", []),
+        red_flags=research_data.get("red_flags", []),
+        sources_used=research_data.get("sources_used", []),
+        pipeline_stage="researched",
+        researched_at=now_iso,
+    )
+
+    # ── Log final ─────────────────────────────────────
+    score = prospect.fit_score or 0
+    priority = (prospect.priority or "warm").upper()
+
     yield log.add(
         "done",
-        f"Investigación completa. Fit Score: {mock_data['fit_score']}/10 "
-        f"— Prioridad: {mock_data['priority'].upper()}"
-    ), mock_data
+        f"Investigación completa. Fit Score: {score}/10 "
+        f"— Prioridad: {priority} "
+        f"— Motor: {engine_used}"
+    ), prospect
 
 
-def do_research(
-    user_input: str,
-    mode: str = "name",
-) -> Generator[tuple[str, dict | None], None, None]:
+# ──────────────────────────────────────────────────────────
+# Batch Processing (para CSV imports)
+# ──────────────────────────────────────────────────────────
+
+def do_batch_research(
+    items: list[dict],
+    delay_seconds: int = 5,
+) -> Generator[tuple[str, int, int, Prospect | None], None, None]:
     """
-    Orquestador principal de investigación.
-    FASE 1: Delega al mock.
-    FASE 2: try Gemini → except → fallback OpenAI.
+    Procesa múltiples prospectos en secuencia con delay entre cada uno.
+    Ref: SPEC.md § 10.2.
+
+    Args:
+        items: Lista de dicts con {input, mode}.
+        delay_seconds: Pausa entre cada research (rate limiting).
 
     Yields:
-        (log_text, research_data | None)
+        (log_text, current_index, total, prospect | None)
     """
-    # FASE 1: Usar mock
-    yield from mock_research_generator(user_input, mode)
+    from app.config import BATCH_DELAY_SECONDS
+    delay = delay_seconds or BATCH_DELAY_SECONDS
+    total = len(items)
+    log = LogAccumulator()
 
-    # FASE 2 (futuro): Reemplazar por:
-    # try:
-    #     yield from gemini_research_generator(user_input, mode)
-    # except Exception as e:
-    #     yield log.add("warning", f"Gemini falló: {e}. Usando fallback...")
-    #     yield from openai_fallback_generator(user_input, mode)
+    yield log.add(
+        "batch",
+        f"Iniciando batch research: {total} prospectos..."
+    ), 0, total, None
+
+    for i, item in enumerate(items):
+        user_input = item.get("input", "")
+        mode = item.get("mode", "name")
+        current = i + 1
+
+        yield log.add(
+            "start",
+            f"[{current}/{total}] Investigando: {user_input}..."
+        ), current, total, None
+
+        # Ejecutar research individual
+        prospect = None
+        try:
+            for res_log, res_prospect in do_research(user_input, mode):
+                if res_prospect is not None:
+                    prospect = res_prospect
+                yield res_log, current, total, None
+
+        except Exception as e:
+            yield log.add(
+                "error",
+                f"[{current}/{total}] Error: {str(e)[:80]}"
+            ), current, total, None
+
+            # Crear prospecto de fallback
+            prospect = Prospect.create_fallback(user_input, str(e))
+
+        yield log.add(
+            "success",
+            f"[{current}/{total}] Completado: {user_input}"
+        ), current, total, prospect
+
+        # Rate limiting: pausa entre requests
+        if i < total - 1:
+            yield log.add(
+                "info",
+                f"Esperando {delay}s (rate limiting)..."
+            ), current, total, None
+            time.sleep(delay)
+
+    yield log.add(
+        "done",
+        f"Batch completo: {total} prospectos procesados."
+    ), total, total, None

@@ -15,7 +15,7 @@ from google import genai
 from google.genai import types
 
 from app.config import GEMINI_API_KEY, GEMINI_MODEL
-from app.agents.prompts import RESEARCH_PROMPT, OUTREACH_PROMPT
+from app.agents.prompts import RESEARCH_PROMPT, OUTREACH_PROMPT, EXECUTIVE_SUMMARY_PROMPT
 from app.utils.logger import LogAccumulator
 
 
@@ -45,6 +45,11 @@ def call_gemini_research(
     """
     client = _get_client()
 
+    print(f"\n{'='*60}")
+    print(f"[GEMINI SEARCH] Query enviado a Google:")
+    print(f"  {query}")
+    print(f"{'='*60}")
+
     yield log.add(
         "search",
         "Consultando Google Search via Gemini Grounding..."
@@ -71,6 +76,42 @@ def call_gemini_research(
         )
 
     raw_text = response.text
+
+    # ── Imprimir metadata de grounding (fuentes usadas) ──────
+    try:
+        for candidate in (response.candidates or []):
+            gm = getattr(candidate, "grounding_metadata", None)
+            if not gm:
+                print("[GEMINI] Sin grounding metadata en esta respuesta.")
+                continue
+
+            # Queries que Google ejecutó internamente
+            search_queries = getattr(gm, "web_search_queries", None) or []
+            if search_queries:
+                print(f"\n[GEMINI] Google Search queries ejecutadas ({len(search_queries)}):")
+                for q in search_queries:
+                    print(f"  🔍 {q}")
+
+            # Chunks = páginas analizadas por Gemini
+            chunks = getattr(gm, "grounding_chunks", None) or []
+            print(f"\n[GEMINI] Páginas analizadas por Gemini: {len(chunks)}")
+            for i, chunk in enumerate(chunks, 1):
+                web = getattr(chunk, "web", None)
+                if web:
+                    title = getattr(web, "title", "") or "(sin título)"
+                    uri = getattr(web, "uri", "") or ""
+                    print(f"  [{i:02d}] {title}")
+                    print(f"        {uri}")
+
+            # Segmentos con respaldo de fuentes
+            supports = getattr(gm, "grounding_supports", None) or []
+            if supports:
+                print(f"\n[GEMINI] Fragmentos respaldados por fuentes: {len(supports)}")
+    except Exception as meta_err:
+        print(f"[GEMINI] Error leyendo grounding metadata: {meta_err}")
+
+    print(f"\n[GEMINI] Respuesta generada: {len(raw_text)} caracteres")
+    print(f"{'='*60}\n")
 
     yield log.add(
         "success",
@@ -114,4 +155,43 @@ def call_gemini_outreach(
     yield log.add(
         "success",
         f"Email generado ({len(raw_text)} caracteres)."
+    ), raw_text
+
+
+def call_gemini_summary(
+    pipeline_json: str,
+    log: LogAccumulator,
+) -> Generator[tuple[str, str | None], None, None]:
+    """
+    Llama a Gemini para generar el resumen ejecutivo del pipeline.
+    NO usa Search Grounding — los datos ya están en el JSON.
+
+    Yields:
+        (log_text, raw_response | None)
+    """
+    client = _get_client()
+
+    yield log.add(
+        "search",
+        "Analizando pipeline con Gemini..."
+    ), None
+
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=pipeline_json,
+        config=types.GenerateContentConfig(
+            system_instruction=EXECUTIVE_SUMMARY_PROMPT,
+        ),
+    )
+
+    if not response or not response.text:
+        raise ValueError(
+            "Gemini no devolvió contenido para el resumen ejecutivo."
+        )
+
+    raw_text = response.text
+
+    yield log.add(
+        "success",
+        f"Resumen ejecutivo generado ({len(raw_text)} caracteres)."
     ), raw_text

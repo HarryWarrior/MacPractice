@@ -11,8 +11,6 @@ _EXAMPLE_CSV = """clinic_name,location
 "Smiles of Bellevue","Bellevue, WA"
 "Downtown Dental","Seattle, WA"
 "Evergreen Care","Redmond, WA"
-"Pacific Smiles","Portland, OR"
-"Summit Dental Group","Denver, CO"
 """
 
 

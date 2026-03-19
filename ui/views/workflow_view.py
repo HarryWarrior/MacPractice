@@ -2,6 +2,8 @@
 # Vista Workflow — Pipeline de 6 etapas
 # FASE 2: conectado a do_research() y do_outreach() reales (Agente A)
 
+import html as _html
+import urllib.parse
 import gradio as gr
 from ui.theme import (
     C, stepper_html, badge_html, score_ring_svg,
@@ -13,7 +15,7 @@ from ui.components.competitor_card import competitor_card_html
 # ── Importaciones del backend del Agente A ────────────────────────────────
 from app.services.research_service import do_research
 from app.models.prospect import Prospect
-from app.services.outreach_service import do_outreach
+from app.services.outreach_service import do_outreach, save_outreach_feedback
 from app.services.email_service import send_real_email, format_email_for_clipboard
 from app.services.storage_service import storage
 
@@ -113,6 +115,44 @@ def _steps_from_log(log_text: str) -> list:
                 steps[i]["status"] = "active"
 
     return steps
+
+
+_LOG_COLORS = {
+    "🟢": "#4ADE80",
+    "🔎": "#60A5FA",
+    "✅": "#4ADE80",
+    "⚠️": "#FCD34D",
+    "🚨": "#F87171",
+    "ℹ️": "#94A3B8",
+    "✍️": "#C084FC",
+    "📧": "#60A5FA",
+    "📦": "#FCD34D",
+    "🏁": "#4ADE80",
+}
+
+def _log_html(text: str) -> str:
+    """Converts plain LogAccumulator text to styled terminal HTML (for gr.HTML)."""
+    _BASE = (
+        'background:#001828; border:1px solid #1A5272; border-radius:10px; '
+        'padding:14px 16px; font-family:\'JetBrains Mono\',monospace; font-size:11.5px; '
+        'min-height:140px; max-height:320px; overflow-y:auto; '
+        'box-shadow:inset 0 2px 10px rgba(0,0,0,0.5);'
+    )
+    if not text or not text.strip():
+        return (
+            f'<div style="{_BASE} display:flex; align-items:center; justify-content:center;">'
+            f'<span style="color:#2A5C72;">⬡ waiting for input...</span></div>'
+        )
+    lines_html = ""
+    for line in text.strip().split("\n"):
+        color = "#4ADE80"
+        for icon, clr in _LOG_COLORS.items():
+            if icon in line:
+                color = clr
+                break
+        safe = _html.escape(line)
+        lines_html += f'<div style="color:{color}; padding:1px 0; line-height:1.85;">{safe}</div>'
+    return f'<div style="{_BASE}">{lines_html}</div>'
 
 
 def _research_steps_html(steps: list) -> str:
@@ -228,6 +268,72 @@ def _profile_html(data: dict) -> str:
 </div>
 """
 
+    # ── Contact & Links ───────────────────────────────────────
+    website_url  = online.get("website", "")
+    phone_num    = online.get("phone", "")
+    clinic_email = dm.get("email", "") or dm.get("email_pattern", "")
+    facebook_url = online.get("facebook", "")
+    links_found  = data.get("links_found") or []
+
+    _LINK_STYLE = (
+        "display:inline-flex; align-items:center; gap:5px; padding:5px 12px; "
+        "border-radius:20px; font-size:12px; font-weight:600; text-decoration:none; "
+        "border:1px solid; white-space:nowrap;"
+    )
+    contact_chips = []
+    if website_url:
+        contact_chips.append(
+            f'<a href="{website_url}" target="_blank" rel="noopener noreferrer" '
+            f'style="{_LINK_STYLE} color:{C["accent"]}; border-color:rgba(16,185,129,0.3); '
+            f'background:rgba(16,185,129,0.08);">🌐 Website</a>'
+        )
+    if phone_num:
+        contact_chips.append(
+            f'<a href="tel:{phone_num}" '
+            f'style="{_LINK_STYLE} color:{C["blue"]}; border-color:rgba(59,130,246,0.3); '
+            f'background:rgba(59,130,246,0.08);">📞 {phone_num}</a>'
+        )
+    if clinic_email:
+        contact_chips.append(
+            f'<a href="mailto:{clinic_email}" '
+            f'style="{_LINK_STYLE} color:{C["purple"]}; border-color:rgba(99,102,241,0.3); '
+            f'background:rgba(99,102,241,0.08);">📧 {clinic_email}</a>'
+        )
+    dm_linkedin_url = dm.get("linkedin", "")
+    if dm_linkedin_url:
+        contact_chips.append(
+            f'<a href="{dm_linkedin_url}" target="_blank" rel="noopener noreferrer" '
+            f'style="{_LINK_STYLE} color:#0a66c2; border-color:rgba(10,102,194,0.3); '
+            f'background:rgba(10,102,194,0.08);">🔗 LinkedIn</a>'
+        )
+    if facebook_url:
+        contact_chips.append(
+            f'<a href="{facebook_url}" target="_blank" rel="noopener noreferrer" '
+            f'style="{_LINK_STYLE} color:#1877f2; border-color:rgba(24,119,242,0.3); '
+            f'background:rgba(24,119,242,0.08);">👍 Facebook</a>'
+        )
+    # Extra links found during research
+    for lnk in links_found[:6]:
+        if lnk and lnk not in (website_url, dm_linkedin_url, facebook_url):
+            label = lnk.split("//")[-1].split("/")[0].replace("www.", "")[:28]
+            contact_chips.append(
+                f'<a href="{lnk}" target="_blank" rel="noopener noreferrer" '
+                f'style="{_LINK_STYLE} color:{C["text_muted"]}; border-color:{C["border"]}; '
+                f'background:{C["surface"]};">🔗 {label}</a>'
+            )
+
+    contact_section = ""
+    if contact_chips:
+        contact_section = f"""
+<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+            padding:12px 16px; background:{C['surface']};
+            border:1px solid {C['border']}; border-radius:10px; margin-top:10px;">
+    <span style="font-size:10px; font-weight:700; letter-spacing:1px;
+                 color:{C['text_dim']}; text-transform:uppercase;">Contact & Links</span>
+    {"".join(contact_chips)}
+</div>
+"""
+
     # ── Métricas: best angle / decision maker / software ─────
     dm_name    = dm.get("name", "Unknown")
     dm_role    = dm.get("role", "")
@@ -248,7 +354,7 @@ def _profile_html(data: dict) -> str:
     <div class="insight-card">
         <div class="insight-card-title" style="color:{C['amber']};">🧑‍💼 Decision Maker</div>
         <div style="font-size:13px; color:{C['text']};">{dm_display}</div>
-        {f'<a href="{dm_linkedin}" style="font-size:11px; color:{C["blue"]}; text-decoration:none;">LinkedIn ↗</a>' if dm_linkedin else ""}
+        {f'<a href="{dm_linkedin}" target="_blank" rel="noopener noreferrer" style="font-size:11px; color:{C["blue"]}; text-decoration:none;">LinkedIn ↗</a>' if dm_linkedin else ""}
     </div>
     <div class="insight-card">
         <div class="insight-card-title" style="color:{sw_color};">💿 Current Software</div>
@@ -351,9 +457,9 @@ def _profile_html(data: dict) -> str:
 </div>
 """
 
-    return (header + metrics_row + competitor_section + insights_grid +
-            talking_section + reviews_section + hiring_section +
-            red_section + sources_section)
+    return (header + contact_section + metrics_row + competitor_section +
+            insights_grid + talking_section + reviews_section +
+            hiring_section + red_section + sources_section)
 
 
 # ──────────────────────────────────────────────
@@ -416,6 +522,7 @@ def _draft_hooks_html(draft: dict) -> str:
         f'{tone_notes}</div>'
     ) if tone_notes else ""
 
+    wa_li = _whatsapp_linkedin_html(draft)
     return f"""
 <div style="background:{C['card']}; border:1px solid {C['purple']};
      border-radius:12px; padding:16px;">
@@ -424,7 +531,72 @@ def _draft_hooks_html(draft: dict) -> str:
     {hooks_html}
     {tone_html}
 </div>
-"""
+{wa_li}"""
+
+
+def _whatsapp_linkedin_html(draft: dict) -> str:
+    """WhatsApp clickable button and LinkedIn copy-paste DM section."""
+    if not draft:
+        return ""
+    wa_msg  = draft.get("whatsapp_message", "")
+    li_msg  = draft.get("linkedin_message", "")
+    phone   = draft.get("_phone", "")
+    if not wa_msg and not li_msg:
+        return ""
+
+    phone_clean = "".join(c for c in phone if c.isdigit() or c == "+")
+
+    # ── WhatsApp ──────────────────────────────────────────────
+    wa_html = ""
+    if wa_msg:
+        wa_escaped = _html.escape(wa_msg)
+        if phone_clean:
+            wa_url = f"https://wa.me/{phone_clean}?text={urllib.parse.quote(wa_msg)}"
+            wa_btn = (
+                f'<a href="{wa_url}" target="_blank" rel="noopener noreferrer" '
+                f'style="display:inline-flex; align-items:center; gap:8px; '
+                f'background:#25D366; color:#fff; text-decoration:none; '
+                f'padding:8px 18px; border-radius:8px; font-weight:700; font-size:12px; '
+                f'margin-top:8px; letter-spacing:0.3px;">💬 Open WhatsApp</a>'
+            )
+        else:
+            wa_btn = (
+                f'<div style="font-size:11px; color:{C["text_dim"]}; margin-top:6px;">'
+                f'No phone found — copy message manually</div>'
+            )
+        wa_html = f"""
+<div style="margin-top:14px; border-top:1px solid {C['border']}; padding-top:12px;">
+    <div style="font-size:11px; font-weight:700; letter-spacing:1px; color:#25D366;
+                text-transform:uppercase; margin-bottom:8px;">💬 WhatsApp</div>
+    <div style="font-size:12px; color:{C['text_muted']}; line-height:1.65; white-space:pre-wrap;
+                background:{C['surface']}; padding:10px 12px; border-radius:8px;
+                border:1px solid {C['border']}; font-family:'Plus Jakarta Sans',sans-serif;">{wa_escaped}</div>
+    {wa_btn}
+</div>"""
+
+    # ── LinkedIn ──────────────────────────────────────────────
+    li_html = ""
+    if li_msg:
+        li_escaped = _html.escape(li_msg)
+        li_html = f"""
+<div style="margin-top:14px; border-top:1px solid {C['border']}; padding-top:12px;">
+    <div style="font-size:11px; font-weight:700; letter-spacing:1px; color:#0A66C2;
+                text-transform:uppercase; margin-bottom:8px;">🔗 LinkedIn DM (copy &amp; paste)</div>
+    <div style="font-size:12px; color:{C['text_muted']}; line-height:1.65; white-space:pre-wrap;
+                background:{C['surface']}; padding:10px 12px; border-radius:8px;
+                border:1px solid {C['border']}; font-family:'Plus Jakarta Sans',sans-serif;
+                user-select:all; cursor:text;" title="Click to select all">{li_escaped}</div>
+    <div style="font-size:11px; color:{C['text_dim']}; margin-top:5px;">Click the text to select all, then copy.</div>
+</div>"""
+
+    return f"""
+<div style="background:{C['card']}; border:1px solid {C['border']};
+     border-radius:12px; padding:16px; margin-top:12px;">
+    <div style="font-size:11px; font-weight:700; letter-spacing:1px; color:{C['text_dim']};
+                text-transform:uppercase; margin-bottom:4px;">📱 Multi-Channel Outreach</div>
+    {wa_html}
+    {li_html}
+</div>"""
 
 
 def _approved_email_html(draft: dict, subject: str, body: str) -> str:
@@ -538,7 +710,7 @@ def _real_research_gen(clinic_text: str, current_prospects: list):
                 updated_prospects = list(current_prospects or []) + [prospect_dict]
 
                 yield (
-                    log_text,
+                    _log_html(log_text),
                     _research_steps_html(steps),
                     *[gr.update(visible=v) for v in _PROFILE_VIS],
                     stepper_html("profile"),
@@ -549,20 +721,20 @@ def _real_research_gen(clinic_text: str, current_prospects: list):
             else:
                 # ── Yield intermedio — streaming de logs ─────────────────
                 yield (
-                    log_text,
+                    _log_html(log_text),
                     _research_steps_html(steps),
                     *[gr.update(visible=v) for v in _RESEARCH_VIS],
                     stepper_html("research"),
-                    gr.update(),   # profile_display sin cambio
-                    gr.update(),   # active_prospect_state sin cambio
-                    gr.update(),   # prospects_state sin cambio
+                    gr.update(),   # profile_display
+                    gr.update(),   # active_prospect_state
+                    gr.update(),   # prospects_state
                 )
 
     except Exception as e:
         error_msg = str(e)[:300]
         all_steps_done = _build_initial_steps()
         yield (
-            f"[ERROR] {error_msg}",
+            _log_html(f"[ERROR] {error_msg}"),
             _research_steps_html(all_steps_done),
             *[gr.update(visible=v) for v in _PROFILE_VIS],
             stepper_html("profile"),
@@ -604,7 +776,7 @@ def _real_outreach_gen(prospect_dict: dict | None):
                 first_subject = subjects[0] if subjects else ""
 
                 yield (
-                    log_text,
+                    _log_html(log_text),
                     *[gr.update(visible=v) for v in _DRAFT_VIS],
                     stepper_html("draft"),
                     _draft_preview_html(draft_data, first_subject, body),
@@ -619,7 +791,7 @@ def _real_outreach_gen(prospect_dict: dict | None):
             else:
                 # ── Yield intermedio ──────────────────────────────────────
                 yield (
-                    log_text,
+                    _log_html(log_text),
                     *[gr.update(visible=v) for v in _LOADING_VIS],
                     stepper_html("draft_loading"),
                     gr.update(),  # draft_preview_display
@@ -644,7 +816,7 @@ def _real_outreach_gen(prospect_dict: dict | None):
             "follow_up_timing": "",
         }
         yield (
-            f"[ERROR] {error_msg}",
+            _log_html(f"[ERROR] {error_msg}"),
             *[gr.update(visible=v) for v in _DRAFT_VIS],
             stepper_html("draft"),
             _draft_preview_html(fallback_draft, fallback_draft["subject_options"][0], fallback_draft["body"]),
@@ -719,16 +891,10 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
             with gr.Column(scale=1):
                 gr.HTML(
                     f'<div style="font-size:11px; font-weight:700; color:{C["text_dim"]}; '
-                    f'letter-spacing:1px; text-transform:uppercase; padding:8px 0 8px;">Live Research Log</div>'
+                    f'letter-spacing:1px; text-transform:uppercase; padding:8px 0 8px;">'
+                    f'🖥 Live Research Log</div>'
                 )
-                research_log = gr.Textbox(
-                    value="",
-                    label="",
-                    lines=14,
-                    max_lines=14,
-                    interactive=False,
-                    elem_classes=["terminal-log"],
-                )
+                research_log = gr.HTML(value=_log_html(""))
 
     # ════ ETAPA 3: PROFILE ═══════════════════════════════════
     with gr.Group(visible=False) as stage_profile:
@@ -762,13 +928,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
 </div>
 """)
             with gr.Column(scale=1):
-                outreach_log = gr.Textbox(
-                    value="",
-                    label="",
-                    lines=10,
-                    interactive=False,
-                    elem_classes=["terminal-log"],
-                )
+                outreach_log = gr.HTML(value=_log_html(""))
 
     # ════ ETAPA 5: DRAFT (review + approve/reject) ═══════════
     with gr.Group(visible=False) as stage_draft:
@@ -845,6 +1005,39 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                             scale=2,
                         )
 
+                # Reject feedback panel (hidden until Reject is clicked)
+                with gr.Group(visible=False) as reject_feedback_group:
+                    gr.HTML(f"""
+<div style="background:linear-gradient(135deg, rgba(245,158,11,0.08) 0%, {C['card']} 100%);
+            border:1.5px solid rgba(245,158,11,0.35); border-radius:12px; padding:16px 18px; margin-bottom:12px;">
+    <div style="font-size:13px; font-weight:700; color:{C['amber']}; margin-bottom:8px;">🧠 Retrain the Agent</div>
+    <div style="font-size:12px; color:{C['text_muted']}; line-height:1.65;">
+        Please specify what needs improvement (e.g., <em>"Too formal"</em>, <em>"Don't mention pricing yet"</em>, <em>"Make it shorter"</em>).
+        Your feedback will be permanently appended to the Agent's core memory bank,
+        retraining the model to adapt its future outreach style and logic specifically for Mac Practice.
+    </div>
+</div>
+""")
+                    reject_feedback_input = gr.Textbox(
+                        label="What should be improved?",
+                        placeholder='e.g. "Too formal", "Don\'t mention pricing yet", "Make it shorter"',
+                        lines=3,
+                        elem_classes=["mp-input"],
+                    )
+                    with gr.Row():
+                        btn_skip_feedback = gr.Button(
+                            "Skip & Regenerate",
+                            variant="secondary",
+                            elem_classes=["gr-button", "secondary"],
+                            scale=1,
+                        )
+                        btn_submit_feedback = gr.Button(
+                            "💾 Save & Regenerate",
+                            variant="primary",
+                            elem_classes=["gr-button", "primary"],
+                            scale=2,
+                        )
+
     # ════ ETAPA 6: SEND ══════════════════════════════════════
     with gr.Group(visible=False) as stage_send:
         send_display = gr.HTML(value=_send_stage_html())
@@ -880,15 +1073,15 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         return (
             *_show_only(stage_research),
             stepper_html("research"),
-            "",
+            _log_html(""),
             _research_steps_html(_build_initial_steps()),
         )
 
     btn_research.click(
         fn=_start_research_ui,
         outputs=[*all_stage_groups, stepper_display, research_log, research_steps_display],
-    )
-    btn_research.click(
+        queue=False,
+    ).then(
         fn=_real_research_gen,
         inputs=[clinic_input, prospects_state],
         outputs=[
@@ -922,14 +1115,14 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         return (
             *_show_only(stage_draft_loading),
             stepper_html("draft_loading"),
-            "",
+            _log_html(""),
         )
 
     btn_generate_outreach.click(
         fn=_start_outreach_ui,
         outputs=[*all_stage_groups, stepper_display, outreach_log],
-    )
-    btn_generate_outreach.click(
+        queue=False,
+    ).then(
         fn=_real_outreach_gen,
         inputs=[active_prospect_state],
         outputs=_OUTREACH_GEN_OUTPUTS,
@@ -942,12 +1135,49 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         outputs=[draft_subject_input],
     )
 
-    # ── Reject: también limpia y re-corre outreach ────────────
+    # ── Reject: muestra panel de feedback (no regenera todavía) ──
     btn_reject.click(
-        fn=_start_outreach_ui,
-        outputs=[*all_stage_groups, stepper_display, outreach_log],
+        fn=lambda: gr.update(visible=True),
+        outputs=[reject_feedback_group],
+        queue=False,
     )
-    btn_reject.click(
+
+    # ── Submit & Regenerate: guarda feedback y regenera ───────
+    def _save_feedback_and_start(feedback):
+        if feedback and feedback.strip():
+            save_outreach_feedback(feedback.strip())
+        return (
+            gr.update(visible=False),   # ocultar feedback panel
+            *_show_only(stage_draft_loading),
+            stepper_html("draft_loading"),
+            _log_html(""),
+        )
+
+    btn_submit_feedback.click(
+        fn=_save_feedback_and_start,
+        inputs=[reject_feedback_input],
+        outputs=[reject_feedback_group, *all_stage_groups, stepper_display, outreach_log],
+        queue=False,
+    ).then(
+        fn=_real_outreach_gen,
+        inputs=[active_prospect_state],
+        outputs=_OUTREACH_GEN_OUTPUTS,
+    )
+
+    # ── Skip & Regenerate: salta el feedback y regenera ───────
+    def _skip_and_start():
+        return (
+            gr.update(visible=False),   # ocultar feedback panel
+            *_show_only(stage_draft_loading),
+            stepper_html("draft_loading"),
+            _log_html(""),
+        )
+
+    btn_skip_feedback.click(
+        fn=_skip_and_start,
+        outputs=[reject_feedback_group, *all_stage_groups, stepper_display, outreach_log],
+        queue=False,
+    ).then(
         fn=_real_outreach_gen,
         inputs=[active_prospect_state],
         outputs=_OUTREACH_GEN_OUTPUTS,

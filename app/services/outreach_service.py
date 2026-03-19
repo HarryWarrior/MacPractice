@@ -7,6 +7,8 @@ en su propio módulo con responsabilidad única.
 """
 
 import json
+import os
+from pathlib import Path
 from typing import Generator
 
 from app.models.prospect import Prospect
@@ -18,6 +20,26 @@ from app.utils.json_parser import (
     parse_llm_json,
     create_outreach_fallback,
 )
+
+# Path where permanent feedback/memory is stored
+_MEMORY_FILE = Path(__file__).parent.parent / "agents" / "outreach_memory.txt"
+
+
+def load_outreach_memory() -> str:
+    """Loads accumulated outreach feedback from the permanent memory file."""
+    if _MEMORY_FILE.exists():
+        content = _MEMORY_FILE.read_text(encoding="utf-8").strip()
+        return content
+    return ""
+
+
+def save_outreach_feedback(feedback: str) -> None:
+    """Appends new feedback to the permanent memory file."""
+    _MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(_MEMORY_FILE, "a", encoding="utf-8") as f:
+        from datetime import datetime
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+        f.write(f"\n[{ts}] {feedback.strip()}\n")
 
 
 def do_outreach(
@@ -64,6 +86,23 @@ def do_outreach(
         yield log.add(
             "info",
             "Sin competidor detectado — outreach general."
+        ), None
+
+    # ── Inyectar phone en contexto si está disponible ──
+    phone = (prospect.online_presence or {}).get("phone", "")
+    if phone:
+        prospect_dict["_contact_phone"] = phone
+
+    # ── Cargar memoria de feedback acumulada ──────────
+    memory = load_outreach_memory()
+    if memory:
+        prospect_dict["_style_feedback_memory"] = (
+            "IMPORTANT — Apply these learned style corrections from "
+            "previous feedback:\n" + memory
+        )
+        yield log.add(
+            "info",
+            "Aplicando memoria de feedback de outreach previo."
         ), None
 
     # Serializar como JSON string para el LLM
@@ -175,6 +214,25 @@ def _parse_and_enrich_draft(
 
     if not draft.get("tone_notes"):
         draft["tone_notes"] = ""
+
+    if not draft.get("whatsapp_message"):
+        draft["whatsapp_message"] = (
+            f"Hi! I came across {prospect.clinic_name} and was really impressed. "
+            "I work with Mac Practice and thought it might be a good fit for your team. "
+            "Would love to share a quick idea — is now a bad time?"
+        )
+
+    if not draft.get("linkedin_message"):
+        draft["linkedin_message"] = (
+            f"Hi! I noticed {prospect.clinic_name} and thought there might be a fit "
+            "with what we do at Mac Practice. Open to connect?"
+        )
+
+    # Inject phone for WhatsApp link generation (UI uses this)
+    if not draft.get("_phone"):
+        draft["_phone"] = (
+            getattr(prospect, "online_presence", {}) or {}
+        ).get("phone", "")
 
     return draft
 

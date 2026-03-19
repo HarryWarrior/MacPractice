@@ -82,6 +82,7 @@ class Prospect:
     talking_points: list[str] = field(default_factory=list)
     red_flags: list[str] = field(default_factory=list)
     sources_used: list[str] = field(default_factory=list)
+    links_found: list[str] = field(default_factory=list)
 
     # ── Metadata de Pipeline ──────────────────────────────
     pipeline_stage: str = "new"       # new|researched|outreach_sent|responded|meeting

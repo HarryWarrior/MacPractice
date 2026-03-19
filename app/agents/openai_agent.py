@@ -12,7 +12,7 @@ from openai import OpenAI
 from ddgs import DDGS
 
 from app.config import OPENAI_API_KEY, OPENAI_MODEL
-from app.agents.prompts import RESEARCH_PROMPT, OUTREACH_PROMPT
+from app.agents.prompts import RESEARCH_PROMPT, OUTREACH_PROMPT, EXECUTIVE_SUMMARY_PROMPT
 from app.utils.logger import LogAccumulator
 
 
@@ -43,27 +43,40 @@ def _search_duckduckgo(
     Returns:
         String con los fragmentos de búsqueda formateados.
     """
+    print(f"\n{'='*60}")
+    print(f"[DUCKDUCKGO] Query: {query}")
+    print(f"[DUCKDUCKGO] Buscando hasta {max_results} resultados...")
+    print(f"{'='*60}")
+
     if log:
         log.add("search", "Buscando en DuckDuckGo...")
 
     try:
         results = DDGS().text(query, max_results=max_results)
     except Exception as e:
+        print(f"[DUCKDUCKGO] ERROR: {e}")
         if log:
             log.add("warning", f"DuckDuckGo falló: {e}")
         return "No web search results available."
 
     if not results:
+        print("[DUCKDUCKGO] Sin resultados.")
         if log:
             log.add("warning", "DuckDuckGo no devolvió resultados.")
         return "No web search results available."
 
+    print(f"\n[DUCKDUCKGO] {len(results)} páginas encontradas:")
     # Formatear los resultados como contexto
     fragments = []
     for i, r in enumerate(results, 1):
-        title = r.get("title", "")
-        body = r.get("body", "")
-        href = r.get("href", "")
+        title = r.get("title", "") or "(sin título)"
+        body = r.get("body", "") or ""
+        href = r.get("href", "") or ""
+        print(f"  [{i:02d}] {title}")
+        print(f"        URL: {href}")
+        if body:
+            snippet = body[:120].replace("\n", " ")
+            print(f"        Snippet: {snippet}{'...' if len(body) > 120 else ''}")
         fragments.append(
             f"[Source {i}] {title}\n"
             f"URL: {href}\n"
@@ -71,6 +84,9 @@ def _search_duckduckgo(
         )
 
     context = "\n---\n".join(fragments)
+
+    print(f"\n[DUCKDUCKGO] Contexto total enviado a OpenAI: {len(context)} caracteres")
+    print(f"{'='*60}\n")
 
     if log:
         log.add("success", f"DuckDuckGo: {len(results)} resultados encontrados.")
@@ -101,6 +117,8 @@ def call_openai_research(
     yield log.text, None
 
     # Paso 2: Inyectar contexto web en el prompt y llamar a OpenAI
+    print(f"[OPENAI] Enviando {len(web_context)} chars de contexto web a {OPENAI_MODEL}...")
+
     yield log.add(
         "search",
         f"Enviando contexto a {OPENAI_MODEL}..."
@@ -128,6 +146,8 @@ def call_openai_research(
 
     if not raw_text:
         raise ValueError("OpenAI no devolvió contenido.")
+
+    print(f"[OPENAI] Respuesta recibida: {len(raw_text)} caracteres")
 
     yield log.add(
         "success",
@@ -171,4 +191,42 @@ def call_openai_outreach(
     yield log.add(
         "success",
         f"Email generado con OpenAI ({len(raw_text)} caracteres)."
+    ), raw_text
+
+
+def call_openai_summary(
+    pipeline_json: str,
+    log: LogAccumulator,
+) -> Generator[tuple[str, str | None], None, None]:
+    """
+    Fallback: Genera el resumen ejecutivo del pipeline con OpenAI.
+
+    Yields:
+        (log_text, raw_response | None)
+    """
+    yield log.add(
+        "warning",
+        "Generando resumen ejecutivo con OpenAI (fallback)..."
+    ), None
+
+    client = _get_openai_client()
+
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {"role": "system", "content": EXECUTIVE_SUMMARY_PROMPT},
+            {"role": "user", "content": pipeline_json},
+        ],
+        temperature=0.5,
+        max_tokens=800,
+    )
+
+    raw_text = response.choices[0].message.content
+
+    if not raw_text:
+        raise ValueError("OpenAI no devolvió contenido para el resumen ejecutivo.")
+
+    yield log.add(
+        "success",
+        f"Resumen generado con OpenAI ({len(raw_text)} caracteres)."
     ), raw_text

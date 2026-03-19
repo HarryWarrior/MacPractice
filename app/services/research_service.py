@@ -179,6 +179,7 @@ def do_research(
         talking_points=research_data.get("talking_points", []),
         red_flags=research_data.get("red_flags", []),
         sources_used=research_data.get("sources_used", []),
+        links_found=research_data.get("links_found", []),
         pipeline_stage="researched",
         researched_at=now_iso,
     )

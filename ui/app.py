@@ -6,7 +6,7 @@ import os
 import gradio as gr
 from dotenv import load_dotenv
 from ui.theme import CSS, C
-from ui.views.dashboard_view import build_dashboard_tab, render_dashboard_html
+from ui.views.dashboard_view import build_dashboard_tab, _render_top_html, _build_static_summary_html, _render_kanban_html
 from ui.views.workflow_view import build_workflow_tab
 
 load_dotenv()
@@ -40,9 +40,10 @@ def build_app() -> gr.Blocks:
         # ════════════════════════════════════════════════════════════════
         #  SECCIÓN PRINCIPAL: Dashboard / Pipeline / Kanban
         # ════════════════════════════════════════════════════════════════
-        dashboard_html, btn_new, btn_csv, batch_group, btn_batch_close = build_dashboard_tab(
-            prospects_state, batch_progress_state
-        )
+        (
+            dashboard_top_html, executive_summary_display, dashboard_kanban_html,
+            btn_new, btn_csv, batch_group, btn_batch_close,
+        ) = build_dashboard_tab(prospects_state, batch_progress_state)
 
         # ── Navegación — mutual exclusivity ──────────────────────────
         workflow_visible = gr.State(False)
@@ -85,7 +86,12 @@ def build_app() -> gr.Blocks:
         # ── Seed de demo ──────────────────────────────────────────────
         demo.load(
             fn=_load_demo_data,
-            outputs=[prospects_state, dashboard_html],
+            outputs=[
+                prospects_state,
+                dashboard_top_html,
+                executive_summary_display,
+                dashboard_kanban_html,
+            ],
         )
 
     return demo
@@ -214,7 +220,12 @@ def _load_demo_data():
             "current_software": "Dentrix", "pipeline_stage": "meeting",
         },
     ]
-    return sample_prospects, render_dashboard_html(sample_prospects)
+    return (
+        sample_prospects,
+        _render_top_html(sample_prospects),
+        _build_static_summary_html(sample_prospects),
+        _render_kanban_html(sample_prospects),
+    )
 
 
 if __name__ == "__main__":

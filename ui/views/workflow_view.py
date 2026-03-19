@@ -496,6 +496,23 @@ def _send_stage_html(sent: bool = False, error: str = "") -> str:
 #  Generators reales (Fase 2)
 # ──────────────────────────────────────────────
 
+def _error_profile_html(message: str) -> str:
+    """Card de error para mostrar cuando el research falla."""
+    return f"""
+<div style="background:{C['card']}; border:1.5px solid {C['red']}; border-radius:14px;
+            padding:28px 24px; text-align:center; margin:8px 0;">
+    <div style="font-size:32px; margin-bottom:12px;">⚠️</div>
+    <div style="font-size:15px; font-weight:700; color:{C['red']}; margin-bottom:8px;">Research Failed</div>
+    <div style="font-size:13px; color:{C['text_muted']}; line-height:1.6; max-width:460px; margin:0 auto;">
+        {message}
+    </div>
+    <div style="margin-top:16px; font-size:12px; color:{C['text_dim']};">
+        Check your API keys in <code>.env</code> and try again.
+    </div>
+</div>
+"""
+
+
 def _real_research_gen(clinic_text: str, current_prospects: list):
     """
     Wraps do_research() del Agente A y mapea sus yields al formato de Gradio.
@@ -511,34 +528,48 @@ def _real_research_gen(clinic_text: str, current_prospects: list):
     _RESEARCH_VIS  = (False, True,  False, False, False, False)
     _PROFILE_VIS   = (False, False, True,  False, False, False)
 
-    for log_text, prospect in do_research(clinic_text, mode):
-        steps = _steps_from_log(log_text)
+    try:
+        for log_text, prospect in do_research(clinic_text, mode):
+            steps = _steps_from_log(log_text)
 
-        if prospect is not None:
-            # ── Research completado ──────────────────────────────────
-            prospect_dict = prospect.to_dict()
-            updated_prospects = list(current_prospects or []) + [prospect_dict]
+            if prospect is not None:
+                # ── Research completado ──────────────────────────────────
+                prospect_dict = prospect.to_dict()
+                updated_prospects = list(current_prospects or []) + [prospect_dict]
 
-            yield (
-                log_text,
-                _research_steps_html(steps),
-                *[gr.update(visible=v) for v in _PROFILE_VIS],
-                stepper_html("profile"),
-                _profile_html(prospect_dict),
-                prospect_dict,
-                updated_prospects,
-            )
-        else:
-            # ── Yield intermedio — streaming de logs ─────────────────
-            yield (
-                log_text,
-                _research_steps_html(steps),
-                *[gr.update(visible=v) for v in _RESEARCH_VIS],
-                stepper_html("research"),
-                gr.update(),   # profile_display sin cambio
-                gr.update(),   # active_prospect_state sin cambio
-                gr.update(),   # prospects_state sin cambio
-            )
+                yield (
+                    log_text,
+                    _research_steps_html(steps),
+                    *[gr.update(visible=v) for v in _PROFILE_VIS],
+                    stepper_html("profile"),
+                    _profile_html(prospect_dict),
+                    prospect_dict,
+                    updated_prospects,
+                )
+            else:
+                # ── Yield intermedio — streaming de logs ─────────────────
+                yield (
+                    log_text,
+                    _research_steps_html(steps),
+                    *[gr.update(visible=v) for v in _RESEARCH_VIS],
+                    stepper_html("research"),
+                    gr.update(),   # profile_display sin cambio
+                    gr.update(),   # active_prospect_state sin cambio
+                    gr.update(),   # prospects_state sin cambio
+                )
+
+    except Exception as e:
+        error_msg = str(e)[:300]
+        all_steps_done = _build_initial_steps()
+        yield (
+            f"[ERROR] {error_msg}",
+            _research_steps_html(all_steps_done),
+            *[gr.update(visible=v) for v in _PROFILE_VIS],
+            stepper_html("profile"),
+            _error_profile_html(error_msg),
+            gr.update(),
+            gr.update(),
+        )
 
 
 def _real_outreach_gen(prospect_dict: dict | None):
@@ -564,41 +595,67 @@ def _real_outreach_gen(prospect_dict: dict | None):
     _LOADING_VIS = (False, False, False, True,  False, False)
     _DRAFT_VIS   = (False, False, False, False, True,  False)
 
-    for log_text, draft_data in do_outreach(prospect_obj):
-        if draft_data is not None:
-            # ── Draft generado ────────────────────────────────────────
-            subjects = draft_data.get("subject_options") or []
-            body     = draft_data.get("body", "")
-            first_subject = subjects[0] if subjects else ""
+    try:
+        for log_text, draft_data in do_outreach(prospect_obj):
+            if draft_data is not None:
+                # ── Draft generado ────────────────────────────────────────
+                subjects = draft_data.get("subject_options") or []
+                body     = draft_data.get("body", "")
+                first_subject = subjects[0] if subjects else ""
 
-            yield (
-                log_text,
-                *[gr.update(visible=v) for v in _DRAFT_VIS],
-                stepper_html("draft"),
-                _draft_preview_html(draft_data, first_subject, body),
-                _draft_hooks_html(draft_data),
-                draft_data,
-                first_subject,
-                body,
-                gr.update(choices=subjects, value=first_subject),
-                gr.update(visible=True),   # edit_mode_group
-                gr.update(visible=False),  # approved_mode_group
-            )
-        else:
-            # ── Yield intermedio ──────────────────────────────────────
-            yield (
-                log_text,
-                *[gr.update(visible=v) for v in _LOADING_VIS],
-                stepper_html("draft_loading"),
-                gr.update(),  # draft_preview_display
-                gr.update(),  # draft_hooks_display
-                gr.update(),  # draft_state
-                gr.update(),  # draft_subject_input
-                gr.update(),  # draft_body_input
-                gr.update(),  # subject_radio
-                gr.update(),  # edit_mode_group
-                gr.update(),  # approved_mode_group
-            )
+                yield (
+                    log_text,
+                    *[gr.update(visible=v) for v in _DRAFT_VIS],
+                    stepper_html("draft"),
+                    _draft_preview_html(draft_data, first_subject, body),
+                    _draft_hooks_html(draft_data),
+                    draft_data,
+                    first_subject,
+                    body,
+                    gr.update(choices=subjects, value=first_subject),
+                    gr.update(visible=True),   # edit_mode_group
+                    gr.update(visible=False),  # approved_mode_group
+                )
+            else:
+                # ── Yield intermedio ──────────────────────────────────────
+                yield (
+                    log_text,
+                    *[gr.update(visible=v) for v in _LOADING_VIS],
+                    stepper_html("draft_loading"),
+                    gr.update(),  # draft_preview_display
+                    gr.update(),  # draft_hooks_display
+                    gr.update(),  # draft_state
+                    gr.update(),  # draft_subject_input
+                    gr.update(),  # draft_body_input
+                    gr.update(),  # subject_radio
+                    gr.update(),  # edit_mode_group
+                    gr.update(),  # approved_mode_group
+                )
+
+    except Exception as e:
+        error_msg = str(e)[:300]
+        fallback_draft = {
+            "subject_options": ["(Outreach generation failed — edit manually)"],
+            "body": f"Error: {error_msg}\n\nPlease edit this email manually.",
+            "sender_name": "Sales Team",
+            "sender_title": "Mac Practice",
+            "personalization_hooks": [],
+            "tone_notes": "Fallback draft — AI generation failed.",
+            "follow_up_timing": "",
+        }
+        yield (
+            f"[ERROR] {error_msg}",
+            *[gr.update(visible=v) for v in _DRAFT_VIS],
+            stepper_html("draft"),
+            _draft_preview_html(fallback_draft, fallback_draft["subject_options"][0], fallback_draft["body"]),
+            _draft_hooks_html(fallback_draft),
+            fallback_draft,
+            fallback_draft["subject_options"][0],
+            fallback_draft["body"],
+            gr.update(choices=fallback_draft["subject_options"], value=fallback_draft["subject_options"][0]),
+            gr.update(visible=True),
+            gr.update(visible=False),
+        )
 
 
 # ──────────────────────────────────────────────
@@ -624,6 +681,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                 clinic_input = gr.Textbox(
                     label="Clinic Name / URL / Phone / NPI",
                     placeholder="Bright Smile Dental, Austin TX",
+                    value="Smiles of Bellevue, WA",
                     lines=1,
                     elem_classes=["mp-input"],
                 )
@@ -816,7 +874,20 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
 
     # ════ EVENTOS ════════════════════════════════════════════
 
-    # ── Research: single generator handler ───────────────────
+    # ── Research: pre-click (immediate feedback) + generator ─
+    def _start_research_ui():
+        """Cambia la UI a la etapa research inmediatamente, antes del generator."""
+        return (
+            *_show_only(stage_research),
+            stepper_html("research"),
+            "",
+            _research_steps_html(_build_initial_steps()),
+        )
+
+    btn_research.click(
+        fn=_start_research_ui,
+        outputs=[*all_stage_groups, stepper_display, research_log, research_steps_display],
+    )
     btn_research.click(
         fn=_real_research_gen,
         inputs=[clinic_input, prospects_state],

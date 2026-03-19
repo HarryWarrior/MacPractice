@@ -56,7 +56,13 @@ def build_batch_section() -> tuple:
         parsed_state    : gr.State — list[dict] de items parseados
         batch_log_box   : gr.Textbox — log del batch research (terminal log)
     """
-    parsed_state = gr.State([])
+    initial_csv = 'clinic_name,location\n"Smiles of Bellevue","Bellevue, WA"\n"Downtown Dental","Seattle, WA"\n"Evergreen Care","Redmond, WA"'
+    try:
+        initial_items = parse_csv(initial_csv)
+    except Exception:
+        initial_items = []
+
+    parsed_state = gr.State(initial_items)
 
     with gr.Group(visible=False) as batch_group:
         gr.HTML(f"""
@@ -69,12 +75,13 @@ def build_batch_section() -> tuple:
 </div>
 """)
 
-        csv_file = gr.File(
-            label="Upload CSV / TSV",
-            file_types=[".csv", ".tsv", ".txt"],
-            file_count="single",
+        csv_text = gr.Textbox(
+            label="Paste CSV / TSV data here",
+            lines=8,
+            value=initial_csv,
+            placeholder="clinic_name,location\nDr. Smith Dental, New York\n...",
         )
-        preview_display = gr.HTML(value="")
+        preview_display = gr.HTML(value=_csv_preview_html(initial_items) if initial_items else "")
 
         with gr.Row():
             btn_close = gr.Button(
@@ -84,10 +91,10 @@ def build_batch_section() -> tuple:
                 scale=1,
             )
             btn_confirm = gr.Button(
-                "🚀 Research All",
+                f"🚀 Research {len(initial_items)} Clinic{'s' if len(initial_items) != 1 else ''}" if initial_items else "🚀 Research All",
                 variant="primary",
                 elem_classes=["gr-button", "primary"],
-                interactive=False,
+                interactive=bool(initial_items),
                 scale=2,
             )
 
@@ -102,26 +109,26 @@ def build_batch_section() -> tuple:
 
     # ── Events internos ─────────────────────────────────────
 
-    def _on_file_upload(file):
-        if file is None:
+    def _on_text_change(text):
+        if not text or not text.strip():
             return "", [], gr.update(interactive=False, value="🚀 Research All")
         try:
-            with open(file, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
             items = parse_csv(text)
+            if not items:
+                return "", [], gr.update(interactive=False, value="🚀 Research All")
             label = f"🚀 Research {len(items)} Clinic{'s' if len(items) != 1 else ''}"
             return _csv_preview_html(items), items, gr.update(interactive=True, value=label)
-        except ValueError as e:
+        except Exception as e:
             err_html = (
                 f'<div style="color:{C["red"]}; background:{C["card"]}; border:1px solid {C["red"]}; '
                 f'border-radius:10px; padding:12px 16px; font-size:13px;">'
-                f'⚠ {e}</div>'
+                f'⚠ {str(e)[:120]}</div>'
             )
             return err_html, [], gr.update(interactive=False, value="🚀 Research All")
 
-    csv_file.change(
-        fn=_on_file_upload,
-        inputs=[csv_file],
+    csv_text.change(
+        fn=_on_text_change,
+        inputs=[csv_text],
         outputs=[preview_display, parsed_state, btn_confirm],
     )
 

@@ -1,6 +1,6 @@
 # ui/app.py
 # Punto de entrada principal del frontend Gradio
-# Mac Practice Dental Prospector — Fase 1
+# Mac Practice Dental Prospector — Layout Single-Page
 
 import os
 import gradio as gr
@@ -18,50 +18,49 @@ GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
 def build_app() -> gr.Blocks:
     """
     Construye y retorna la aplicación Gradio completa.
-    Layout: 2 tabs (Dashboard | Research & Outreach)
-    Estado global compartido entre tabs via gr.State.
+    Layout: Single-page — Workflow arriba, Kanban + Pipeline abajo.
+    Estado global compartido via gr.State.
     """
     with gr.Blocks(title="Mac Practice · Dental Prospector") as demo:
 
         # ── Estado Global ────────────────────────────────────────────────
-        prospects_state       = gr.State([])    # list[dict] — todos los prospects
-        active_prospect_state = gr.State(None)  # dict | None — prospect activo en workflow
-        batch_progress_state  = gr.State(None)  # dict | None — {current, total, currentName}
+        prospects_state       = gr.State([])
+        active_prospect_state = gr.State(None)
+        batch_progress_state  = gr.State(None)
 
-        # ── Tabs Principales ─────────────────────────────────────────────
-        with gr.Tabs(elem_classes=["mp-tabs"]) as tabs:
+        # ════════════════════════════════════════════════════════════════
+        #  SECCIÓN SUPERIOR: Workflow (Research & Outreach)
+        #  Visible/colapsable via botón "＋ New Prospect"
+        # ════════════════════════════════════════════════════════════════
+        with gr.Group(visible=False) as workflow_section:
+            workflow_handles = build_workflow_tab(
+                prospects_state, active_prospect_state
+            )
 
-            # ════════════════════════════════════════════════
-            #  TAB 1 — PIPELINE / DASHBOARD
-            # ════════════════════════════════════════════════
-            with gr.Tab("📊 Pipeline", elem_id="tab-dashboard"):
-                dashboard_html, btn_new, btn_csv = build_dashboard_tab(
-                    prospects_state, batch_progress_state
-                )
+        # ════════════════════════════════════════════════════════════════
+        #  SECCIÓN PRINCIPAL: Dashboard / Pipeline / Kanban
+        # ════════════════════════════════════════════════════════════════
+        dashboard_html, btn_new, btn_csv = build_dashboard_tab(
+            prospects_state, batch_progress_state
+        )
 
-            # ════════════════════════════════════════════════
-            #  TAB 2 — RESEARCH & OUTREACH WORKFLOW
-            # ════════════════════════════════════════════════
-            with gr.Tab("🔍 Research & Outreach", elem_id="tab-workflow"):
-                workflow_handles = build_workflow_tab(
-                    prospects_state, active_prospect_state
-                )
+        # ── Toggle: "Investigate Prospect" muestra/oculta el workflow ──
+        def _toggle_workflow(current_visible):
+            return gr.update(visible=not current_visible)
 
-        # ── Navegación entre tabs ─────────────────────────────────────────
-        # "New Prospect" → cambia a la tab de workflow
         btn_new.click(
-            fn=lambda: gr.update(selected="🔍 Research & Outreach"),
-            outputs=[tabs],
+            fn=_toggle_workflow,
+            inputs=[workflow_section],
+            outputs=[workflow_section],
         )
 
-        # "Back to Pipeline" en el workflow → vuelve al dashboard
+        # "Back to Pipeline" en el workflow → siempre colapsa el workflow
         workflow_handles["btn_back_to_pipeline"].click(
-            fn=lambda: gr.update(selected="📊 Pipeline"),
-            outputs=[tabs],
+            fn=lambda: gr.update(visible=False),
+            outputs=[workflow_section],
         )
 
-        # ── Seed de demo (opcional) ────────────────────────────────────────
-        # Añade un prospect de ejemplo al cargar para que el kanban no esté vacío
+        # ── Seed de demo ──────────────────────────────────────────────
         demo.load(
             fn=_load_demo_data,
             outputs=[prospects_state, dashboard_html],
@@ -71,7 +70,7 @@ def build_app() -> gr.Blocks:
 
 
 def _load_demo_data():
-    """Carga un prospect de demo para que el pipeline no esté vacío al iniciar."""
+    """Carga prospects de demo para que el kanban no esté vacío al iniciar."""
     sample_prospects = [
         {
             "id": "p_demo_001",

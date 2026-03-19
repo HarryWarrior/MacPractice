@@ -1,130 +1,152 @@
 """
-Servicio de CSV — Parser inteligente para batch import.
+Servicio de CSV — Parser ultra-robusto para bulk import.
 Ref: SPEC.md § 6 — Parser de CSV.
 
-Detecta automáticamente las columnas de nombre y ubicación
-y combina ambos campos en un string de búsqueda.
+Acepta:
+  - CSV con o sin headers
+  - TSV (tab separado)
+  - Una clínica por línea (sin comas)
+  - Formatos mixtos / sucios
+  - Archivos con BOM (UTF-8 BOM)
 """
 
 import csv
 import io
+import re
 from typing import Optional
 
 
 # Headers que indican "nombre de la clínica"
-_NAME_HEADERS = {"name", "clinic", "practice", "clinic_name", "practice_name", "company"}
+_NAME_HEADERS = {
+    "name", "clinic", "practice", "clinic_name", "practice_name",
+    "company", "business", "office", "dentist", "doctor", "provider",
+    "nombre", "clinica", "negocio",
+}
 
 # Headers que indican "ubicación"
-_LOCATION_HEADERS = {"location", "city", "address", "state", "city_state", "area"}
+_LOCATION_HEADERS = {
+    "location", "city", "address", "state", "city_state", "area",
+    "region", "zip", "postal", "lugar", "ciudad", "direccion",
+}
+
+# Si una fila empieza con estos tokens, se salta (es un header)
+_HEADER_TOKENS = _NAME_HEADERS | _LOCATION_HEADERS | {
+    "id", "email", "phone", "website", "url", "notes", "score",
+}
 
 
 def parse_csv(text: str) -> list[dict]:
     """
-    Parsea texto CSV/TSV y retorna una lista de prospectos para batch import.
-    Ref: SPEC.md § 6.1.
+    Parsea texto CSV/TSV/plain-líneas y retorna items para batch research.
 
-    Lógica:
-    1. Separa por línea, filtra vacíos.
-    2. Requiere mínimo 2 líneas (header + 1 dato).
-    3. Detecta columnas de nombre y ubicación por header matching.
-    4. Si no encuentra header de nombre, usa la primera columna.
-    5. Combina nombre + location en un solo string.
-
-    Args:
-        text: Contenido del CSV como string.
+    Modos de detección (en orden de prioridad):
+      1. CSV/TSV con headers reconocibles → detecta columnas name+location
+      2. CSV/TSV sin headers reconocibles → col 0 = name, col 1 = location
+      3. Una clínica por línea (texto plano) → cada línea = un input
 
     Returns:
-        Lista de dicts con {input: str, mode: str}.
-
-    Raises:
-        ValueError: Si el CSV no tiene suficientes datos.
+        Lista de dicts {input: str, mode: "name"}. Nunca lanza excepciones
+        por formato incorrecto; simplifica al máximo.
     """
     if not text or not text.strip():
-        raise ValueError("El archivo CSV está vacío.")
+        return []
 
-    # Detectar delimitador (CSV o TSV)
-    delimiter = "\t" if "\t" in text else ","
+    # Quitar BOM UTF-8 si existe
+    text = text.lstrip("\ufeff").strip()
 
-    reader = csv.reader(io.StringIO(text.strip()), delimiter=delimiter)
-    rows = list(reader)
+    # Detectar delimitador
+    tab_count   = text.count("\t")
+    comma_count = text.count(",")
+    semicol_count = text.count(";")
 
-    # Filtrar filas vacías
-    rows = [row for row in rows if any(cell.strip() for cell in row)]
+    if tab_count > comma_count and tab_count > semicol_count:
+        delimiter = "\t"
+    elif semicol_count > comma_count:
+        delimiter = ";"
+    else:
+        delimiter = ","
 
-    if len(rows) < 2:
-        raise ValueError(
-            "El CSV debe tener al menos 2 líneas "
-            "(1 header + 1 fila de datos)."
-        )
+    lines = [l for l in text.splitlines() if l.strip()]
+    if not lines:
+        return []
 
-    # ── Analizar headers ──────────────────────────────
-    headers = [h.strip().lower().replace(" ", "_") for h in rows[0]]
+    # ── Intentar CSV estructurado ────────────────────────────
+    try:
+        reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+        rows = [row for row in reader if any(c.strip() for c in row)]
+    except Exception:
+        rows = []
 
-    name_col = _find_column(headers, _NAME_HEADERS)
-    location_col = _find_column(headers, _LOCATION_HEADERS)
+    # Si tenemos filas multi-columna, analizar
+    if rows and max(len(r) for r in rows) >= 2:
+        return _parse_structured(rows)
 
-    # Fallback: si no hay header de nombre, usar primera columna
-    if name_col is None:
+    # ── Fallback: una línea = un prospecto ──────────────────
+    return _parse_plain_lines(lines)
+
+
+def _parse_structured(rows: list[list[str]]) -> list[dict]:
+    """Parsea CSV con múltiples columnas."""
+    if not rows:
+        return []
+
+    # Detectar si la primera fila es un header
+    first_row_lower = [c.strip().lower().replace(" ", "_") for c in rows[0]]
+    has_header = any(tok in _HEADER_TOKENS for tok in first_row_lower)
+
+    if has_header:
+        headers = first_row_lower
+        data_rows = rows[1:]
+        name_col = _find_column(headers, _NAME_HEADERS)
+        location_col = _find_column(headers, _LOCATION_HEADERS)
+        # Fallback si no se detecta columna de nombre
+        if name_col is None:
+            name_col = 0
+    else:
+        # Sin header: col 0 = nombre, col 1 = location
+        data_rows = rows
         name_col = 0
+        location_col = 1 if max(len(r) for r in rows) >= 2 else None
 
-    # ── Parsear filas ─────────────────────────────────
-    data_rows = rows[1:]
     results = []
-
     for row in data_rows:
-        if not row or not any(cell.strip() for cell in row):
-            continue
-
-        # Obtener nombre
         name = _clean(row[name_col]) if name_col < len(row) else ""
         if not name:
             continue
 
-        # Obtener location (puede venir de 1 o 2 columnas)
+        # Saltar si el "nombre" parece un header token
+        if name.lower().replace(" ", "_") in _HEADER_TOKENS:
+            continue
+
         location = ""
         if location_col is not None and location_col < len(row):
             location = _clean(row[location_col])
 
-            # Buscar columna de estado/state separada
-            state_col = _find_column(headers, {"state"})
-            if (
-                state_col is not None
-                and state_col != location_col
-                and state_col < len(row)
-            ):
-                state = _clean(row[state_col])
-                if state:
-                    location = f"{location}, {state}"
-
-        # Combinar en un solo input string
-        if location:
-            combined = f"{name}, {location}"
-        else:
-            combined = name
-
-        results.append({
-            "input": combined,
-            "mode": "name",
-        })
-
-    if not results:
-        raise ValueError(
-            "No se encontraron datos válidos en el CSV. "
-            "Verifica que tenga columnas de nombre y ubicación."
-        )
+        combined = f"{name}, {location}" if location else name
+        results.append({"input": combined, "mode": "name"})
 
     return results
 
 
-def _find_column(
-    headers: list[str],
-    target_names: set[str],
-) -> Optional[int]:
-    """Encuentra el índice de la primera columna que coincida."""
+def _parse_plain_lines(lines: list[str]) -> list[dict]:
+    """Una línea = un prospecto (sin estructura CSV)."""
+    results = []
+    for line in lines:
+        cleaned = line.strip().strip('"').strip("'").strip()
+        if not cleaned:
+            continue
+        # Saltar líneas que parecen ser headers solo
+        if cleaned.lower().replace(" ", "_") in _HEADER_TOKENS:
+            continue
+        results.append({"input": cleaned, "mode": "name"})
+    return results
+
+
+def _find_column(headers: list[str], target_names: set[str]) -> Optional[int]:
+    """Encontra el índice de la primera columna que coincida."""
     for i, header in enumerate(headers):
         if header in target_names:
             return i
-        # Partial match: si el header contiene alguna de las palabras clave
         for target in target_names:
             if target in header:
                 return i
@@ -132,29 +154,16 @@ def _find_column(
 
 
 def _clean(value: str) -> str:
-    """Limpia un valor de celda CSV: quita comillas y espacios extra."""
-    return value.strip().strip("\"'").strip()
+    """Limpia un valor CSV: quita comillas, espacios, BOM."""
+    return value.strip().strip('"').strip("'").strip()
 
 
 def format_csv_preview(items: list[dict], max_items: int = 15) -> str:
-    """
-    Formatea una vista previa de los prospectos detectados del CSV.
-    Para mostrar en la UI antes de confirmar el batch import.
-
-    Args:
-        items: Lista de dicts del parse_csv.
-        max_items: Máximo de items a mostrar en el preview.
-
-    Returns:
-        String formateado con la lista numerada.
-    """
+    """Formatea una vista previa numerada de los prospectos detectados."""
     total = len(items)
     lines = [f"📋 {total} clínicas detectadas:\n"]
-
     for i, item in enumerate(items[:max_items], 1):
         lines.append(f"  {i}. {item['input']}")
-
     if total > max_items:
         lines.append(f"  ... y {total - max_items} más")
-
     return "\n".join(lines)

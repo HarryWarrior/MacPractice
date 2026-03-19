@@ -207,8 +207,8 @@ def render_dashboard_html(prospects: list, batch_progress: dict | None = None) -
 
 def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.State):
     """
-    Construye la pestaña Dashboard dentro de un gr.Blocks() activo.
-    Fase 4: incluye batch modal + progress + kanban funcional.
+    Builds the Dashboard section (single-page layout).
+    Includes batch modal, progress tracking, and functional kanban board.
     """
     # ── Top bar ─────────────────────────────────────────────
     with gr.Row(elem_classes=["mp-topbar"]):
@@ -216,13 +216,13 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
             gr.HTML(navbar_html())
         with gr.Column(scale=0, min_width=140):
             btn_csv = gr.Button(
-                "📂 CSV Import",
+                "🚀 Bulk Research",
                 variant="secondary",
                 elem_classes=["gr-button", "secondary"],
             )
         with gr.Column(scale=0, min_width=150):
             btn_new = gr.Button(
-                "＋ New Prospect",
+                "🔍 Investigate Prospect",
                 variant="primary",
                 elem_classes=["gr-button", "primary"],
             )
@@ -385,13 +385,17 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
         outputs=[prospects_state, kanban_drop],
     )
 
-    # ── Open batch modal ─────────────────────────────────────
+    # ── Toggle batch modal ────────────────────────────────────
+    def _toggle_batch(current_visible):
+        return gr.update(visible=not current_visible)
+
     btn_csv.click(
-        fn=lambda: gr.update(visible=True),
+        fn=_toggle_batch,
+        inputs=[batch_group],
         outputs=[batch_group],
     )
 
-    # ── Close batch modal ────────────────────────────────────
+    # ── Close batch modal (Cancel button) ────────────────────
     btn_batch_close.click(
         fn=lambda: gr.update(visible=False),
         outputs=[batch_group],

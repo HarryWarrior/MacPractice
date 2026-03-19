@@ -55,8 +55,8 @@ _STEP_KEYWORDS = [
     ["Scanning LinkedIn", "decision maker", "LinkedIn"],
     ["Checking job postings", "job posting", "hiring", "Indeed", "Glassdoor"],
     ["Analyzing reviews", "Healthgrades", "Zocdoc", "reviews"],
-    ["Detecting competitor", "Competidor detectado", "competitor software"],
-    ["Scoring fit", "compiling intelligence", "JSON parseado", "Investigación completa", "completo"],
+    ["Detecting competitor", "Competitor detected", "competitor software"],
+    ["Scoring fit", "compiling intelligence", "JSON parsed", "Research complete", "complete"],
 ]
 
 
@@ -1064,7 +1064,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
             return (
                 *_show_only(stage_send),
                 stepper_html("send"),
-                _send_stage_html(sent=False, error=f"Error inesperado: {str(e)[:80]}"),
+                _send_stage_html(sent=False, error=f"Unexpected error: {str(e)[:80]}"),
                 gr.update(visible=True, value=fallback_clipboard),
             )
 

@@ -522,7 +522,6 @@ def _draft_hooks_html(draft: dict) -> str:
         f'{tone_notes}</div>'
     ) if tone_notes else ""
 
-    wa_li = _whatsapp_linkedin_html(draft)
     return f"""
 <div style="background:{C['card']}; border:1px solid {C['purple']};
      border-radius:12px; padding:16px;">
@@ -530,8 +529,7 @@ def _draft_hooks_html(draft: dict) -> str:
                 text-transform:uppercase; margin-bottom:10px;">🎯 Personalization Hooks</div>
     {hooks_html}
     {tone_html}
-</div>
-{wa_li}"""
+</div>"""
 
 
 def _whatsapp_linkedin_html(draft: dict) -> str:
@@ -747,11 +745,11 @@ def _real_research_gen(clinic_text: str, current_prospects: list):
 def _real_outreach_gen(prospect_dict: dict | None):
     """
     Wraps do_outreach() del Agente A y mapea sus yields al formato de Gradio.
-    Yields 16 valores en cada iteración (consistente para Gradio).
     Outputs: outreach_log, *all_stage_groups(6), stepper_display,
              draft_preview_display, draft_hooks_display, draft_state,
              draft_subject_input, draft_body_input, subject_radio,
-             edit_mode_group, approved_mode_group
+             edit_mode_group, approved_mode_group,
+             recipient_input, wa_phone_input, wa_li_display
     """
     if not prospect_dict:
         return
@@ -774,6 +772,14 @@ def _real_outreach_gen(prospect_dict: dict | None):
                 subjects = draft_data.get("subject_options") or []
                 body     = draft_data.get("body", "")
                 first_subject = subjects[0] if subjects else ""
+                # Pre-fill recipient from decision_maker email
+                dm_email = (prospect_dict or {}).get("decision_maker", {})
+                if isinstance(dm_email, dict):
+                    dm_email = dm_email.get("email", "")
+                else:
+                    dm_email = ""
+                # Pre-fill phone for WhatsApp
+                phone = draft_data.get("_phone", "")
 
                 yield (
                     _log_html(log_text),
@@ -787,6 +793,9 @@ def _real_outreach_gen(prospect_dict: dict | None):
                     gr.update(choices=subjects, value=first_subject),
                     gr.update(visible=True),   # edit_mode_group
                     gr.update(visible=False),  # approved_mode_group
+                    gr.update(value=""),        # recipient_input — vacío en MVP, el usuario pone su correo de prueba
+                    gr.update(value=phone),    # wa_phone_input
+                    _whatsapp_linkedin_html(draft_data),  # wa_li_display
                 )
             else:
                 # ── Yield intermedio ──────────────────────────────────────
@@ -802,6 +811,9 @@ def _real_outreach_gen(prospect_dict: dict | None):
                     gr.update(),  # subject_radio
                     gr.update(),  # edit_mode_group
                     gr.update(),  # approved_mode_group
+                    gr.update(),  # recipient_input
+                    gr.update(),  # wa_phone_input
+                    gr.update(),  # wa_li_display
                 )
 
     except Exception as e:
@@ -827,6 +839,9 @@ def _real_outreach_gen(prospect_dict: dict | None):
             gr.update(choices=fallback_draft["subject_options"], value=fallback_draft["subject_options"][0]),
             gr.update(visible=True),
             gr.update(visible=False),
+            gr.update(),  # recipient_input
+            gr.update(),  # wa_phone_input
+            gr.update(value=""),  # wa_li_display
         )
 
 
@@ -953,6 +968,12 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
 
                 # Edit mode group
                 with gr.Group(visible=True) as edit_mode_group:
+                    recipient_input = gr.Textbox(
+                        label="📧 To (email) — MVP: usa tu correo personal para prueba",
+                        placeholder="tu_correo@gmail.com",
+                        lines=1,
+                        elem_classes=["mp-input"],
+                    )
                     draft_subject_input = gr.Textbox(
                         label="Subject",
                         lines=1,
@@ -982,6 +1003,15 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                             elem_classes=["gr-button", "primary"],
                             scale=1,
                         )
+
+                # WhatsApp/LinkedIn section (below approve/reject)
+                wa_phone_input = gr.Textbox(
+                    label="WhatsApp number",
+                    placeholder="+1 (555) 123-4567",
+                    lines=1,
+                    elem_classes=["mp-input"],
+                )
+                wa_li_display = gr.HTML(value="")
 
                 # Approved mode group
                 with gr.Group(visible=False) as approved_mode_group:
@@ -1108,6 +1138,9 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         subject_radio,
         edit_mode_group,
         approved_mode_group,
+        recipient_input,
+        wa_phone_input,
+        wa_li_display,
     ]
 
     def _start_outreach_ui():
@@ -1183,6 +1216,20 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         outputs=_OUTREACH_GEN_OUTPUTS,
     )
 
+    # ── WhatsApp phone change → regenerate WA/LinkedIn section ──
+    def _update_wa_phone(phone, draft):
+        if not draft:
+            return gr.update()
+        updated = dict(draft)
+        updated["_phone"] = phone
+        return _whatsapp_linkedin_html(updated)
+
+    wa_phone_input.change(
+        fn=_update_wa_phone,
+        inputs=[wa_phone_input, draft_state],
+        outputs=[wa_li_display],
+    )
+
     # ── Approve ───────────────────────────────────────────────
     def _approve_draft(draft, subject, body):
         updated = dict(draft or {})
@@ -1220,7 +1267,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
     )
 
     # ── Create Gmail Draft (Fase 4: envío real via Gmail SMTP) ────
-    def _do_send(draft, subject, body, prospect_dict):
+    def _do_send(draft, subject, body, prospect_dict, recipient_val):
         """
         Intenta enviar el email via Gmail SMTP.
         Si falla, muestra el email formateado para copy/paste.
@@ -1231,9 +1278,12 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
             sender_name = (draft or {}).get("sender_name", "Sales Team")
             sender_title = (draft or {}).get("sender_title", "Mac Practice")
 
-            # Intentar obtener el email del decision maker
-            dm = (prospect_dict or {}).get("decision_maker") or {}
-            recipient = dm.get("email", "")
+            # Usar el email editado por el usuario (recipient_input)
+            # Si está vacío, intentar fallback desde el prospect
+            recipient = (recipient_val or "").strip()
+            if not recipient:
+                dm = (prospect_dict or {}).get("decision_maker") or {}
+                recipient = dm.get("email", "") if isinstance(dm, dict) else ""
 
             # Preparar email para clipboard (siempre disponible)
             clipboard_text = format_email_for_clipboard(
@@ -1262,7 +1312,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                 except Exception as e:
                     error_msg = str(e)[:120]
             else:
-                error_msg = "No decision maker email found. Copy the draft manually."
+                error_msg = "No recipient email set. Enter one in the 'To (email)' field and try again."
 
             # Hard fallback on message
             if not sent and not error_msg:
@@ -1300,7 +1350,7 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
 
     btn_create_gmail.click(
         fn=_do_send,
-        inputs=[draft_state, draft_subject_input, draft_body_input, active_prospect_state],
+        inputs=[draft_state, draft_subject_input, draft_body_input, active_prospect_state, recipient_input],
         outputs=[*all_stage_groups, stepper_display, send_display, clipboard_box],
     )
 

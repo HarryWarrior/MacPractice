@@ -277,7 +277,7 @@ def _summary_card_html(
         f'{"🤖 Generated with AI" if is_ai else "🤖 IA Summary"}</span>'
     )
 
-    title_label = "🤖 AI Executive Summary" if is_ai else "📊 Pipeline Summary"
+    title_label = "🤖 AI Executive Summary"
     border_color = C["purple"] if is_ai else C["border"]
     bg_extra = (
         f"background:linear-gradient(145deg, rgba(99,102,241,0.04) 0%, {C['card']} 100%);"

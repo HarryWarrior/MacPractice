@@ -45,7 +45,8 @@ def _credentials_are_valid() -> bool:
 
     email_lower = GMAIL_SENDER_EMAIL.lower()
     pass_lower = GMAIL_APP_PASSWORD.lower()
-
+    print(f"[EMAIL] Sender: {GMAIL_SENDER_EMAIL}")
+    print(f"[EMAIL] Password: {GMAIL_APP_PASSWORD}")
     for keyword in _PLACEHOLDER_KEYWORDS:
         if keyword in email_lower or keyword in pass_lower:
             return False

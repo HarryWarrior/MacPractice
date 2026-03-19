@@ -15,7 +15,7 @@ from typing import Generator
 
 from app.models.prospect import Prospect
 from app.models.competitor import detect_competitor
-from app.agents.prompts import build_research_query
+from app.agents.prompts import build_research_query, build_ddg_query
 from app.agents.gemini_agent import call_gemini_research
 from app.agents.openai_agent import call_openai_research
 from app.utils.logger import LogAccumulator, create_research_log_steps
@@ -55,7 +55,8 @@ def do_research(
         f"Iniciando investigación para: {user_input}..."
     ), None
 
-    query = build_research_query(user_input, mode)
+    query     = build_research_query(user_input, mode)
+    ddg_query = build_ddg_query(user_input, mode)
     yield log.add("info", f"Modo de búsqueda: {mode}"), None
     time.sleep(0.3)
 
@@ -92,7 +93,7 @@ def do_research(
 
         # ── Intento 2: OpenAI + DuckDuckGo ────────────
         try:
-            for log_text, response in call_openai_research(query, log):
+            for log_text, response in call_openai_research(query, log, ddg_query=ddg_query):
                 if response is not None:
                     raw_response = response
                 yield log_text, None

@@ -44,8 +44,9 @@ def _search_duckduckgo(
         String con los fragmentos de búsqueda formateados.
     """
     print(f"\n{'='*60}")
-    print(f"[DUCKDUCKGO] Query: {query}")
-    print(f"[DUCKDUCKGO] Buscando hasta {max_results} resultados...")
+    print(f"[DUCKDUCKGO ▶ ENTRADA]")
+    print(f"  Query exacto enviado: {repr(query)}")
+    print(f"  Máximo resultados:    {max_results}")
     print(f"{'='*60}")
 
     if log:
@@ -54,29 +55,29 @@ def _search_duckduckgo(
     try:
         results = DDGS().text(query, max_results=max_results)
     except Exception as e:
-        print(f"[DUCKDUCKGO] ERROR: {e}")
+        print(f"[DUCKDUCKGO ✗ ERROR]: {e}")
         if log:
             log.add("warning", f"DuckDuckGo falló: {e}")
         return "No web search results available."
 
     if not results:
-        print("[DUCKDUCKGO] Sin resultados.")
+        print("[DUCKDUCKGO ✗ SALIDA]: Sin resultados.")
         if log:
             log.add("warning", "DuckDuckGo no devolvió resultados.")
         return "No web search results available."
 
-    print(f"\n[DUCKDUCKGO] {len(results)} páginas encontradas:")
-    # Formatear los resultados como contexto
+    print(f"\n[DUCKDUCKGO ◀ SALIDA] {len(results)} resultados:")
+    print(f"{'-'*60}")
     fragments = []
     for i, r in enumerate(results, 1):
         title = r.get("title", "") or "(sin título)"
-        body = r.get("body", "") or ""
-        href = r.get("href", "") or ""
-        print(f"  [{i:02d}] {title}")
-        print(f"        URL: {href}")
+        body  = r.get("body", "")  or ""
+        href  = r.get("href", "")  or ""
+        print(f"  [{i:02d}] TÍTULO:  {title}")
+        print(f"        URL:     {href}")
         if body:
-            snippet = body[:120].replace("\n", " ")
-            print(f"        Snippet: {snippet}{'...' if len(body) > 120 else ''}")
+            print(f"        SNIPPET: {body.replace(chr(10), ' ')}")
+        print()
         fragments.append(
             f"[Source {i}] {title}\n"
             f"URL: {href}\n"
@@ -84,8 +85,8 @@ def _search_duckduckgo(
         )
 
     context = "\n---\n".join(fragments)
-
-    print(f"\n[DUCKDUCKGO] Contexto total enviado a OpenAI: {len(context)} caracteres")
+    print(f"{'-'*60}")
+    print(f"[DUCKDUCKGO] Total chars enviados a OpenAI: {len(context)}")
     print(f"{'='*60}\n")
 
     if log:
@@ -97,9 +98,16 @@ def _search_duckduckgo(
 def call_openai_research(
     query: str,
     log: LogAccumulator,
+    ddg_query: str | None = None,
 ) -> Generator[tuple[str, str | None], None, None]:
     """
     Fallback: Busca con DDG + genera análisis con gpt-4o-mini.
+
+    Args:
+        query: Query completo para OpenAI (contexto con instrucciones).
+        log: Logger acumulador.
+        ddg_query: Query limpio para DuckDuckGo (sin instrucciones).
+                   Si es None, usa `query` directamente.
 
     Yields:
         (log_text, raw_response | None)
@@ -112,8 +120,9 @@ def call_openai_research(
         "Activando fallback: DuckDuckGo + OpenAI..."
     ), None
 
-    # Paso 1: Buscar con DuckDuckGo
-    web_context = _search_duckduckgo(query, max_results=8, log=log)
+    # Paso 1: Buscar con DuckDuckGo usando el query limpio
+    search_q = ddg_query if ddg_query else query
+    web_context = _search_duckduckgo(search_q, max_results=8, log=log)
     yield log.text, None
 
     # Paso 2: Inyectar contexto web en el prompt y llamar a OpenAI

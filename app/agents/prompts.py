@@ -184,6 +184,20 @@ QUERY_TEMPLATES: dict[str, str] = {
     ),
 }
 
+# ── Queries limpios para DuckDuckGo (sin instrucciones) ──────────────────────
+# Estas queries se usan SOLO para la búsqueda web (fallback OpenAI+DDG).
+# Deben ser cortas y específicas para obtener resultados relevantes.
+DDG_QUERY_TEMPLATES: dict[str, str] = {
+    # Solo el nombre exacto entre comillas — DDG lo toma como búsqueda literal.
+    # NO añadir palabras extra: contaminan la búsqueda cuando el nombre
+    # ya contiene "dental" o la ciudad (e.g. "Dental Care Bogota").
+    "name":     '"{input}"',
+    "linkedin": "{input}",
+    "website":  "{input}",
+    "google":   "{input}",
+    "phone":    '"{input}"',
+}
+
 
 def build_research_query(user_input: str, mode: str = "name") -> str:
     """
@@ -191,4 +205,13 @@ def build_research_query(user_input: str, mode: str = "name") -> str:
     según el modo de input del usuario.
     """
     template = QUERY_TEMPLATES.get(mode, QUERY_TEMPLATES["name"])
+    return template.format(input=user_input)
+
+
+def build_ddg_query(user_input: str, mode: str = "name") -> str:
+    """
+    Construye un query limpio y específico para búsqueda web con DuckDuckGo.
+    A diferencia de build_research_query, no incluye instrucciones al LLM.
+    """
+    template = DDG_QUERY_TEMPLATES.get(mode, DDG_QUERY_TEMPLATES["name"])
     return template.format(input=user_input)

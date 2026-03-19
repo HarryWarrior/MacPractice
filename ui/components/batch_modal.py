@@ -1,26 +1,18 @@
 # ui/components/batch_modal.py
-# Bulk Research modal — Mass prospecting for multiple clinics.
-# Accepts: pasted CSV/TSV text, .csv/.tsv/.txt files, or plain text line by line.
+# Bulk Research modal — multi-clinic CSV import for automated research.
 
 import gradio as gr
 from ui.theme import C
 from app.services.csv_service import parse_csv
 
 
-# Example CSV pre-loaded
+# Pre-loaded example CSV
 _EXAMPLE_CSV = """clinic_name,location
 "Smiles of Bellevue","Bellevue, WA"
 "Downtown Dental","Seattle, WA"
 "Evergreen Care","Redmond, WA"
 "Pacific Smiles","Portland, OR"
 "Summit Dental Group","Denver, CO"
-"""
-
-_EXAMPLE_PLAIN = """Smiles of Bellevue, WA
-Downtown Dental, Seattle WA
-Evergreen Care Redmond WA
-Pacific Smiles Portland OR
-Summit Dental Group Denver CO
 """
 
 
@@ -54,7 +46,7 @@ def _csv_preview_html(items: list) -> str:
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
         <span style="font-size:16px;">✅</span>
         <span style="font-size:13px; font-weight:700; color:{C['accent']};">
-            {count} clinic{'s' if count != 1 else ''} ready for research
+            {count} clinic{'s' if count != 1 else ''} ready to research
         </span>
     </div>
     {rows_html}
@@ -68,7 +60,6 @@ def build_batch_section() -> tuple:
     Creates the Bulk Research modal.
     Returns: (batch_group, btn_close, btn_confirm, parsed_state, batch_log_box)
     """
-    # Pre-parse initial example
     try:
         initial_items = parse_csv(_EXAMPLE_CSV)
     except Exception:
@@ -85,7 +76,7 @@ def build_batch_section() -> tuple:
         <span style="font-size:28px;">🚀</span>
         <div>
             <div style="font-size:18px; font-weight:800; color:{C['text']};">
-                Bulk Research — Mass Prospecting
+                Bulk Research
             </div>
             <div style="font-size:13px; color:{C['text_muted']}; margin-top:2px;">
                 Research dozens of clinics automatically with AI
@@ -98,9 +89,9 @@ def build_batch_section() -> tuple:
         <span style="background:rgba(99,102,241,0.12); color:{C['purple']}; font-size:11px;
                      font-weight:700; padding:3px 10px; border-radius:20px;">✓ No headers needed</span>
         <span style="background:rgba(245,158,11,0.12); color:{C['amber']}; font-size:11px;
-                     font-weight:700; padding:3px 10px; border-radius:20px;">✓ Plain text</span>
+                     font-weight:700; padding:3px 10px; border-radius:20px;">✓ Free-form text</span>
         <span style="background:rgba(59,130,246,0.12); color:{C['blue']}; font-size:11px;
-                     font-weight:700; padding:3px 10px; border-radius:20px;">✓ Upload file</span>
+                     font-weight:700; padding:3px 10px; border-radius:20px;">✓ File upload</span>
     </div>
 </div>
 """)
@@ -108,7 +99,7 @@ def build_batch_section() -> tuple:
         with gr.Tabs(elem_classes=["bulk-tabs"]):
 
             # ── Tab 1: Paste text ────────────────────────────────
-            with gr.Tab("✏️ Paste text"):
+            with gr.Tab("✏️ Paste Text"):
                 gr.HTML(f"""
 <div style="font-size:12px; color:{C['text_dim']}; padding:8px 0 4px;">
     Paste your clinic list. Accepts CSV with or without headers,
@@ -118,15 +109,15 @@ def build_batch_section() -> tuple:
                     label="",
                     lines=9,
                     value=_EXAMPLE_CSV,
-                    placeholder="One clinic per line, or in CSV format:\nSmith Dental, New York\nSunset Smiles, Los Angeles CA\n...",
+                    placeholder="One clinic per line, or CSV format:\nSmith Dental, New York\nSunset Smiles, Los Angeles CA\n...",
                     elem_classes=["bulk-textarea"],
                 )
 
             # ── Tab 2: Upload file ───────────────────────────────
-            with gr.Tab("📁 Upload file"):
+            with gr.Tab("📁 Upload File"):
                 gr.HTML(f"""
 <div style="font-size:12px; color:{C['text_dim']}; padding:8px 0 4px;">
-    Upload your .csv, .tsv or .txt file. Format is auto-detected.
+    Upload a .csv, .tsv, or .txt file. Format is detected automatically.
 </div>""")
                 csv_file = gr.File(
                     label="Select or drag your file",
@@ -134,7 +125,7 @@ def build_batch_section() -> tuple:
                     file_count="single",
                 )
 
-        # Preview of detected clinics
+        # Clinic preview
         preview_display = gr.HTML(
             value=_csv_preview_html(initial_items) if initial_items else ""
         )
@@ -164,17 +155,16 @@ def build_batch_section() -> tuple:
             elem_classes=["terminal-log"],
         )
 
-    # ── Events ────────────────────────────────────────────────
+    # ── Events ─────────────────────────────────────────────────
 
     def _refresh_preview(text: str):
-        """Parses text and updates preview."""
         if not text or not text.strip():
             return "", [], gr.update(interactive=False, value="🚀 Research All")
         items = parse_csv(text)
         if not items:
             return (
                 f'<div style="color:{C["text_dim"]}; font-size:13px; padding:8px 0;">'
-                f'No clinics detected. Try another format.</div>',
+                f'No clinics detected. Try a different format.</div>',
                 [],
                 gr.update(interactive=False, value="🚀 Research All"),
             )
@@ -182,7 +172,6 @@ def build_batch_section() -> tuple:
         return _csv_preview_html(items), items, gr.update(interactive=True, value=label)
 
     def _on_file_upload(file):
-        """Reads uploaded file and processes as text."""
         if file is None:
             return "", [], gr.update(interactive=False, value="🚀 Research All")
         try:

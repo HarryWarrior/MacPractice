@@ -32,6 +32,55 @@ STAGE_LABEL_FROM_ID = {col["id"]: col["label"] for col in KANBAN_COLS}
 #  Builders de HTML puro
 # ──────────────────────────────────────────────
 
+def _build_funnel_html(prospects: list) -> str:
+    """Renders a visual sales funnel with prospect counts per stage."""
+    if not prospects:
+        return ""
+
+    stage_counts = {col["id"]: 0 for col in KANBAN_COLS}
+    for p in prospects:
+        sid = p.get("pipeline_stage", "new")
+        if sid in stage_counts:
+            stage_counts[sid] += 1
+
+    max_count = max(stage_counts.values()) or 1
+    total = len(prospects)
+
+    rows = ""
+    for col in KANBAN_COLS:
+        count = stage_counts[col["id"]]
+        pct = round(count / total * 100) if total else 0
+        bar_pct = round(count / max_count * 100) if max_count else 0
+        # Funnel tapers: min 18% width so label is always readable
+        bar_width = max(18, bar_pct)
+
+        rows += f"""
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+    <div style="width:110px; font-size:11px; font-weight:600; color:{C['text_dim']};
+                text-align:right; flex-shrink:0; white-space:nowrap;">{col['label']}</div>
+    <div style="flex:1; position:relative; height:26px;">
+        <div style="position:absolute; left:50%; transform:translateX(-50%);
+                    width:{bar_width}%; height:100%; border-radius:5px;
+                    background:linear-gradient(90deg, {col['color']}33, {col['color']}88);
+                    border:1px solid {col['color']}55;
+                    display:flex; align-items:center; justify-content:center; gap:6px;
+                    transition:width 0.3s ease;">
+            <span style="font-size:12px; font-weight:800; color:{col['color']};">{count}</span>
+            <span style="font-size:10px; color:{C['text_dim']}; font-weight:500;">{pct}%</span>
+        </div>
+    </div>
+</div>"""
+
+    return f"""
+<div style="background:{C['card']}; border:1px solid {C['border']}; border-radius:14px;
+            padding:18px 20px; margin-bottom:14px;">
+    <div style="font-size:11px; font-weight:700; letter-spacing:1px; color:{C['text_dim']};
+                text-transform:uppercase; margin-bottom:14px;">📊 Sales Funnel · {total} prospect{'s' if total != 1 else ''}</div>
+    {rows}
+</div>
+"""
+
+
 def _build_metrics_html(prospects: list) -> str:
     """Genera el bloque de 5 MetricCards con los datos actuales del pipeline."""
     total = len(prospects)
@@ -186,6 +235,7 @@ def _build_batch_progress_html(batch_progress: dict | None) -> str:
 def render_dashboard_html(prospects: list, batch_progress: dict | None = None) -> str:
     batch_bar = _build_batch_progress_html(batch_progress)
     metrics   = _build_metrics_html(prospects)
+    funnel    = _build_funnel_html(prospects)
     kanban    = _build_kanban_html(prospects) if prospects else _build_empty_state_html()
 
     count = len(prospects)
@@ -198,7 +248,7 @@ def render_dashboard_html(prospects: list, batch_progress: dict | None = None) -
     </div>
 </div>
 """
-    return navbar_html() + batch_bar + metrics + section_title + kanban
+    return navbar_html() + batch_bar + metrics + funnel + section_title + kanban
 
 
 # ──────────────────────────────────────────────
@@ -207,8 +257,8 @@ def render_dashboard_html(prospects: list, batch_progress: dict | None = None) -
 
 def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.State):
     """
-    Builds the Dashboard section (single-page layout).
-    Includes batch modal, progress tracking, and functional kanban board.
+    Construye la sección Dashboard (single-page layout).
+    Incluye batch modal + progress + kanban funcional.
     """
     # ── Top bar ─────────────────────────────────────────────
     with gr.Row(elem_classes=["mp-topbar"]):
@@ -220,9 +270,9 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
                 variant="secondary",
                 elem_classes=["gr-button", "secondary"],
             )
-        with gr.Column(scale=0, min_width=150):
+        with gr.Column(scale=0, min_width=160):
             btn_new = gr.Button(
-                "🔍 Investigate Prospect",
+                "🔍 Research Prospect",
                 variant="primary",
                 elem_classes=["gr-button", "primary"],
             )
@@ -385,21 +435,8 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
         outputs=[prospects_state, kanban_drop],
     )
 
-    # ── Toggle batch modal ────────────────────────────────────
-    def _toggle_batch(current_visible):
-        return gr.update(visible=not current_visible)
-
-    btn_csv.click(
-        fn=_toggle_batch,
-        inputs=[batch_group],
-        outputs=[batch_group],
-    )
-
-    # ── Close batch modal (Cancel button) ────────────────────
-    btn_batch_close.click(
-        fn=lambda: gr.update(visible=False),
-        outputs=[batch_group],
-    )
+    # btn_csv toggle and btn_batch_close are wired in app.py
+    # so both sections can close each other (mutual exclusivity).
 
     # ── Batch research generator ─────────────────────────────
     def _run_batch(items, current_prospects):
@@ -448,4 +485,4 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
         outputs=[batch_log_box, prospects_state, batch_progress_state, batch_group],
     )
 
-    return dashboard_html, btn_new, btn_csv
+    return dashboard_html, btn_new, btn_csv, batch_group, btn_batch_close

@@ -9,7 +9,7 @@ Usa DuckDuckGo para obtener fragmentos web y se los inyecta a gpt-4o-mini.
 from typing import Generator
 
 from openai import OpenAI
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 from app.config import OPENAI_API_KEY, OPENAI_MODEL
 from app.agents.prompts import RESEARCH_PROMPT, OUTREACH_PROMPT

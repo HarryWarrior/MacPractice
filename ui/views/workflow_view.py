@@ -969,8 +969,8 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                 # Edit mode group
                 with gr.Group(visible=True) as edit_mode_group:
                     recipient_input = gr.Textbox(
-                        label="📧 To (email) — MVP: usa tu correo personal para prueba",
-                        placeholder="tu_correo@gmail.com",
+                        label="📧 To (email) — MVP: use your personal email",
+                        placeholder="your_email@gmail.com",
                         lines=1,
                         elem_classes=["mp-input"],
                     )

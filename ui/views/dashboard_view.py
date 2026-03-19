@@ -421,7 +421,7 @@ def render_dashboard_html(prospects: list, batch_progress: dict | None = None) -
 #  build_dashboard_tab
 # ──────────────────────────────────────────────
 
-def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.State):
+def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.State, batch_queue_state: gr.State | None = None):
     """
     Construye la sección Dashboard (single-page layout).
     Incluye batch modal + progress + kanban funcional.
@@ -724,7 +724,10 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
     def _run_batch(items, current_prospects):
         if not items:
             return
-        prospects = list(current_prospects or [])
+        prospects    = list(current_prospects or [])
+        new_prospects = []   # tracks only those researched in this batch run
+
+        extra_out = batch_queue_state is not None
 
         for log_text, current, total, prospect in do_batch_research(items):
             current_name = ""
@@ -734,37 +737,45 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
             progress = {"current": current, "total": total, "currentName": current_name}
 
             if prospect is not None:
-                prospects = list(prospects) + [prospect.to_dict()]
-                yield (
+                pdict     = prospect.to_dict()
+                prospects = list(prospects) + [pdict]
+                new_prospects.append(pdict)
+                row = (
                     gr.update(visible=True, value=log_text),
                     prospects,
                     progress if current < total else None,
                     gr.update(visible=False) if current >= total else gr.update(),
                 )
+                yield (*row, gr.update()) if extra_out else row
             else:
-                yield (
+                row = (
                     gr.update(visible=True, value=log_text),
                     gr.update(),
                     progress,
                     gr.update(),
                 )
+                yield (*row, gr.update()) if extra_out else row
 
-        # Batch done — hide log, clear progress
-        yield (
+        # Batch done — hide log, clear progress, populate review queue
+        row = (
             gr.update(visible=False, value=""),
             prospects,
             None,
             gr.update(visible=False),
         )
+        yield (*row, new_prospects) if extra_out else row
 
     btn_batch_confirm.click(
         fn=lambda: gr.update(visible=False),   # close modal first
         outputs=[batch_group],
     )
+    _batch_outputs = [batch_log_box, prospects_state, batch_progress_state, batch_group]
+    if batch_queue_state is not None:
+        _batch_outputs.append(batch_queue_state)
     btn_batch_confirm.click(
         fn=_run_batch,
         inputs=[parsed_state, prospects_state],
-        outputs=[batch_log_box, prospects_state, batch_progress_state, batch_group],
+        outputs=_batch_outputs,
     )
 
     return (

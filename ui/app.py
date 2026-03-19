@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from ui.theme import CSS, C
 from ui.views.dashboard_view import build_dashboard_tab, _render_top_html, _build_static_summary_html, _render_kanban_html
 from ui.views.workflow_view import build_workflow_tab
+from ui.views.batch_review_view import build_batch_review
 
 load_dotenv()
 
@@ -38,12 +39,17 @@ def build_app() -> gr.Blocks:
             )
 
         # ════════════════════════════════════════════════════════════════
+        #  SECCIÓN BATCH REVIEW: Outreach review queue (post bulk research)
+        # ════════════════════════════════════════════════════════════════
+        batch_review_group, batch_queue_state, btn_finish_review = build_batch_review(prospects_state)
+
+        # ════════════════════════════════════════════════════════════════
         #  SECCIÓN PRINCIPAL: Dashboard / Pipeline / Kanban
         # ════════════════════════════════════════════════════════════════
         (
             dashboard_top_html, executive_summary_display, dashboard_kanban_html,
             btn_new, btn_csv, batch_group, btn_batch_close,
-        ) = build_dashboard_tab(prospects_state, batch_progress_state)
+        ) = build_dashboard_tab(prospects_state, batch_progress_state, batch_queue_state)
 
         # ── Navegación — mutual exclusivity ──────────────────────────
         workflow_visible = gr.State(False)
@@ -82,6 +88,7 @@ def build_app() -> gr.Blocks:
             fn=lambda: (False, gr.update(visible=False)),
             outputs=[workflow_visible, workflow_section],
         )
+
 
         # ── Seed de demo ──────────────────────────────────────────────
         demo.load(

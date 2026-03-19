@@ -960,6 +960,12 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                             error_msg = result.error
                 except Exception as e:
                     error_msg = str(e)[:120]
+            else:
+                error_msg = "No decision maker email found. Copy the draft manually."
+
+            # Hard fallback on message
+            if not sent and not error_msg:
+                error_msg = "Saved locally. (Gmail connection skipped)"
 
             # Actualizar pipeline stage del prospect
             if prospect_dict:

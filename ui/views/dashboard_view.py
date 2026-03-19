@@ -8,7 +8,9 @@ from ui.components.prospect_card import prospect_card_html, empty_col_html
 from ui.components.batch_modal import build_batch_section
 
 from app.services.research_service import do_batch_research
+from app.services.storage_service import storage
 from app.models.pipeline import PIPELINE_STAGES
+
 
 # ──────────────────────────────────────────────
 #  Constantes de columnas Kanban
@@ -89,17 +91,18 @@ def _build_kanban_html(prospects: list) -> str:
     """
     # Drop handlers inline (Gradio preserva atributos de evento en HTML)
     _drop_js = (
-        "(function(e){{"
+        "(function(e){"
         "e.preventDefault();"
         "e.currentTarget.classList.remove('drag-over');"
         "var pid=e.dataTransfer.getData('text/plain');"
         "var stage=e.currentTarget.getAttribute('data-stage');"
-        "var el=document.querySelector('#kanban-drop-target textarea');"
-        "if(el&&pid&&stage){{"
-        "el.value=pid+'|'+stage;"
-        "el.dispatchEvent(new Event('input',{{bubbles:true}}));"
-        "}}"
-        "}})(event)"
+        "var el=document.querySelector('#kanban-drop-target textarea, #kanban-drop-target input');"
+        "if(el&&pid&&stage){"
+        "var setter=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;"
+        "setter.call(el, pid+'|'+stage);"
+        "el.dispatchEvent(new Event('input',{bubbles:true}));"
+        "}"
+        "})(event)"
     )
     _over_js = (
         "event.preventDefault();"
@@ -107,7 +110,7 @@ def _build_kanban_html(prospects: list) -> str:
     )
     _leave_js = (
         "if(!event.currentTarget.contains(event.relatedTarget))"
-        "{{event.currentTarget.classList.remove('drag-over')}}"
+        "{event.currentTarget.classList.remove('drag-over')}"
     )
 
     cols_html = ""
@@ -235,9 +238,12 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
     )
 
     # ── Hidden drop target — recibe payload "prospect_id|stage_id" del drag&drop ──
+    # Es vital que sea visible=True para que esté en el DOM y JS lo encuentre.
+    # Se ocultará puramente por CSS.
+    gr.HTML("<style>#kanban-drop-target { display: none !important; opacity: 0; pointer-events: none; height: 0; }</style>")
     kanban_drop = gr.Textbox(
         value="",
-        visible=False,
+        visible=True,
         interactive=True,
         elem_id="kanban-drop-target",
         label="",
@@ -322,6 +328,12 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
             if name == selected_name and target_stage_id:
                 p = dict(p)
                 p["pipeline_stage"] = target_stage_id
+                
+                # Guardar en Storage Service
+                pid = p.get("id")
+                if pid:
+                    storage.move_prospect_stage(pid, target_stage_id)
+                    
                 moved = True
             updated.append(p)
 
@@ -351,9 +363,14 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
         """
         if not drop_data or "|" not in drop_data:
             return gr.update(), ""
+            
         pid, new_stage = drop_data.split("|", 1)
         if new_stage not in {col["id"] for col in KANBAN_COLS}:
             return gr.update(), ""
+            
+        # Guardar en Storage Service
+        storage.move_prospect_stage(pid, new_stage)
+
         updated = []
         for p in (prospects or []):
             if p.get("id") == pid:

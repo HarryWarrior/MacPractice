@@ -34,8 +34,10 @@ def main():
     print("=" * 50)
 
     app = build_app()
+    # Forzar 0.0.0.0 para HF Spaces — el env var GRADIO_SERVER_NAME
+    # puede venir seteado a 127.0.0.1 por la plataforma, lo ignoramos.
     app.launch(
-        server_name=GRADIO_HOST,
+        server_name="0.0.0.0",
         server_port=GRADIO_PORT,
         show_error=True,
         quiet=False,

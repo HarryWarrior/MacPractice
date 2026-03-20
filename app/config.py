@@ -31,7 +31,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 BATCH_DELAY_SECONDS = int(os.getenv("BATCH_DELAY_SECONDS", "5"))
 
 # ── Gradio ────────────────────────────────────────────────
-GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
+GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
 GRADIO_PORT = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
 
 # ── Entorno ───────────────────────────────────────────────

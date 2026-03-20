@@ -977,14 +977,13 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                 draft_preview_display = gr.HTML(value="")
                 draft_hooks_display   = gr.HTML(value="")
 
-            # ── Right: edit controls (edit mode) / approved view ──────────
+            # ── Right: edit controls ───────────────────────────────
             with gr.Column(scale=1):
                 gr.HTML(
                     f'<div style="font-size:14px; font-weight:700; color:{C["text"]}; '
                     f'padding:0 0 12px;">Edit & Approve</div>'
                 )
 
-                # Edit mode group
                 with gr.Group(visible=True) as edit_mode_group:
                     recipient_input = gr.Textbox(
                         label="📧 To (email) — MVP: use your personal email",
@@ -1011,54 +1010,23 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                             scale=1,
                         )
                         btn_reject = gr.Button(
-                            "✗ Reject",
+                            "✗ Reject · 🧠",
                             variant="secondary",
                             elem_classes=["gr-button", "btn-danger"],
                             scale=1,
                         )
                         btn_approve = gr.Button(
-                            "✓ Approve",
+                            "✓ Approve & Send",
                             variant="primary",
                             elem_classes=["gr-button", "primary"],
                             scale=1,
                         )
 
-                # WhatsApp/LinkedIn section (below approve/reject)
-                wa_phone_input = gr.Textbox(
-                    label="WhatsApp number",
-                    placeholder="+1 (555) 123-4567",
-                    lines=1,
-                    elem_classes=["mp-input"],
-                )
-                wa_li_display = gr.HTML(value="")
-
-                # Approved mode group
-                with gr.Group(visible=False) as approved_mode_group:
-                    gr.HTML(f"""
-<div class="approved-mode-notice">
-    ✓ Email approved and ready to send
-</div>
-""")
-                    approved_display = gr.HTML(value="")
-                    with gr.Row():
-                        btn_edit = gr.Button(
-                            "✏️ Edit",
-                            variant="secondary",
-                            elem_classes=["gr-button", "secondary"],
-                            scale=1,
-                        )
-                        btn_create_gmail = gr.Button(
-                            "📧 Create Gmail Draft",
-                            variant="primary",
-                            elem_classes=["gr-button", "primary"],
-                            scale=2,
-                        )
-
-                # Reject feedback panel (hidden until Reject is clicked)
-                with gr.Group(visible=False) as reject_feedback_group:
-                    gr.HTML(f"""
+                    # Reject feedback panel — justo debajo de los botones
+                    with gr.Group(visible=False) as reject_feedback_group:
+                        gr.HTML(f"""
 <div style="background:linear-gradient(135deg, rgba(245,158,11,0.08) 0%, {C['card']} 100%);
-            border:1.5px solid rgba(245,158,11,0.35); border-radius:12px; padding:16px 18px; margin-bottom:12px;">
+            border:1.5px solid rgba(245,158,11,0.35); border-radius:12px; padding:16px 18px; margin-top:10px; margin-bottom:4px;">
     <div style="font-size:13px; font-weight:700; color:{C['amber']}; margin-bottom:8px;">🧠 Retrain the Agent</div>
     <div style="font-size:12px; color:{C['text_muted']}; line-height:1.65;">
         Please specify what needs improvement (e.g., <em>"Too formal"</em>, <em>"Don't mention pricing yet"</em>, <em>"Make it shorter"</em>).
@@ -1067,25 +1035,41 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
     </div>
 </div>
 """)
-                    reject_feedback_input = gr.Textbox(
-                        label="What should be improved?",
-                        placeholder='e.g. "Too formal", "Don\'t mention pricing yet", "Make it shorter"',
-                        lines=3,
-                        elem_classes=["mp-input"],
-                    )
-                    with gr.Row():
-                        btn_skip_feedback = gr.Button(
-                            "Skip & Regenerate",
-                            variant="secondary",
-                            elem_classes=["gr-button", "secondary"],
-                            scale=1,
+                        reject_feedback_input = gr.Textbox(
+                            label="What should be improved?",
+                            placeholder='e.g. "Too formal", "Don\'t mention pricing yet", "Make it shorter"',
+                            lines=3,
+                            elem_classes=["mp-input"],
                         )
-                        btn_submit_feedback = gr.Button(
-                            "💾 Save & Regenerate",
-                            variant="primary",
-                            elem_classes=["gr-button", "primary"],
-                            scale=2,
-                        )
+                        with gr.Row():
+                            btn_skip_feedback = gr.Button(
+                                "Skip & Regenerate",
+                                variant="secondary",
+                                elem_classes=["gr-button", "secondary"],
+                                scale=1,
+                            )
+                            btn_submit_feedback = gr.Button(
+                                "💾 Save & Regenerate",
+                                variant="primary",
+                                elem_classes=["gr-button", "primary"],
+                                scale=2,
+                            )
+
+                # Resultado del envío — inline, sin navegar a stage 6
+                send_result_display = gr.HTML(value="")
+
+                # WhatsApp/LinkedIn section
+                wa_phone_input = gr.Textbox(
+                    label="WhatsApp number",
+                    placeholder="+1 (555) 123-4567",
+                    lines=1,
+                    elem_classes=["mp-input"],
+                )
+                wa_li_display = gr.HTML(value="")
+
+                # Mantenido para compatibilidad con _real_outreach_gen (siempre oculto)
+                with gr.Group(visible=False) as approved_mode_group:
+                    approved_display = gr.HTML(value="")
 
     # ════ ETAPA 6: SEND ══════════════════════════════════════
     with gr.Group(visible=False) as stage_send:
@@ -1173,11 +1157,12 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
             *_show_only(stage_draft_loading),
             stepper_html("draft_loading"),
             _log_html(""),
+            gr.update(value=""),  # limpiar send_result_display
         )
 
     btn_generate_outreach.click(
         fn=_start_outreach_ui,
-        outputs=[*all_stage_groups, stepper_display, outreach_log],
+        outputs=[*all_stage_groups, stepper_display, outreach_log, send_result_display],
         queue=False,
     ).then(
         fn=_real_outreach_gen,
@@ -1254,9 +1239,10 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         outputs=[wa_li_display],
     )
 
-    # ── Approve ───────────────────────────────────────────────
-    def _approve_draft(draft, subject, body, recipient):
-        if not (recipient or "").strip():
+    # ── Approve & Send (directo, sin paso 6) ─────────────────
+    def _approve_and_send(draft, subject, body, recipient, prospect_dict):
+        recipient = (recipient or "").strip()
+        if not recipient:
             warn_html = (
                 f'<div style="margin-top:6px; padding:8px 12px; border-radius:8px; '
                 f'border:1.5px solid {C["amber"]}; background:rgba(245,158,11,0.08); '
@@ -1264,142 +1250,73 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
                 f'⚠ Enter a recipient email above before approving.</div>'
             )
             return (
-                gr.update(),             # draft_preview_display — no change
-                gr.update(),             # draft_state — no change
-                gr.update(),             # approved_state — no change
-                gr.update(),             # edit_mode_group — stay visible
-                gr.update(),             # approved_mode_group — stay hidden
-                gr.update(),             # approved_display — no change
-                gr.update(value=warn_html),  # recipient_warning — show warning
+                gr.update(value=warn_html),  # recipient_warning
+                gr.update(),                 # send_result_display — no change
             )
-        updated = dict(draft or {})
-        updated["_approved_subject"] = subject
-        updated["_approved_body"]    = body
+
+        sender_name = (draft or {}).get("sender_name", "Sales Team")
+
+        sent = False
+        error_msg = ""
+        try:
+            for _log, result in send_real_email(
+                recipient=recipient,
+                subject=subject,
+                body=body,
+                sender_name=sender_name,
+            ):
+                if result is not None:
+                    sent = result.sent
+                    error_msg = result.error or ""
+        except Exception as e:
+            error_msg = str(e)[:120]
+
+        if not sent and not error_msg:
+            error_msg = "Gmail not configured. Copy the email body to send manually."
+
+        # Actualizar pipeline stage
+        if prospect_dict:
+            try:
+                prospect_id = (prospect_dict or {}).get("id", "")
+                if prospect_id:
+                    storage.move_prospect_stage(prospect_id, "outreach_sent")
+            except Exception:
+                pass
+
+        if sent:
+            result_html = (
+                f'<div style="margin-top:12px; padding:16px 20px; border-radius:12px; '
+                f'background:rgba(16,185,129,0.08); border:1.5px solid rgba(16,185,129,0.4);">'
+                f'<div style="font-size:15px; font-weight:700; color:#4ADE80; margin-bottom:6px;">✅ Email Sent!</div>'
+                f'<div style="font-size:12px; color:{C["text_muted"]}; line-height:1.6;">'
+                f'Check your inbox — the email is on its way to <b>{recipient}</b>.<br>'
+                f'<span style="color:{C["text_dim"]};">You can close this panel or research another clinic.</span>'
+                f'</div></div>'
+            )
+        else:
+            result_html = (
+                f'<div style="margin-top:12px; padding:16px 20px; border-radius:12px; '
+                f'background:rgba(245,158,11,0.08); border:1.5px solid rgba(245,158,11,0.4);">'
+                f'<div style="font-size:14px; font-weight:700; color:{C["amber"]}; margin-bottom:6px;">📋 Saved Locally</div>'
+                f'<div style="font-size:12px; color:{C["text_muted"]}; line-height:1.6;">{error_msg}</div>'
+                f'</div>'
+            )
+
         return (
-            _draft_preview_html(updated, subject, body, approved=True),
-            updated,
-            True,
-            gr.update(visible=False),  # edit_mode_group
-            gr.update(visible=True),   # approved_mode_group
-            _approved_email_html(updated, subject, body),
-            gr.update(value=""),       # recipient_warning — clear
+            gr.update(value=""),            # recipient_warning — clear
+            gr.update(value=result_html),   # send_result_display
         )
 
     btn_approve.click(
-        fn=_approve_draft,
-        inputs=[draft_state, draft_subject_input, draft_body_input, recipient_input],
-        outputs=[
-            draft_preview_display, draft_state, approved_state,
-            edit_mode_group, approved_mode_group, approved_display,
-            recipient_warning,
-        ],
+        fn=_approve_and_send,
+        inputs=[draft_state, draft_subject_input, draft_body_input, recipient_input, active_prospect_state],
+        outputs=[recipient_warning, send_result_display],
     )
     # Clear warning when user starts typing the recipient
     recipient_input.change(
         fn=lambda _: gr.update(value=""),
         inputs=[recipient_input],
         outputs=[recipient_warning],
-    )
-
-    # ── Edit (post-approval: return to edit mode) ─────────────
-    def _edit_draft():
-        return (
-            gr.update(visible=True),   # edit_mode_group
-            gr.update(visible=False),  # approved_mode_group
-            False,                     # approved_state
-        )
-
-    btn_edit.click(
-        fn=_edit_draft,
-        outputs=[edit_mode_group, approved_mode_group, approved_state],
-    )
-
-    # ── Create Gmail Draft (Fase 4: envío real via Gmail SMTP) ────
-    def _do_send(draft, subject, body, prospect_dict, recipient_val):
-        """
-        Intenta enviar el email via Gmail SMTP.
-        Si falla, muestra el email formateado para copy/paste.
-        También actualiza el pipeline stage del prospect.
-        NUNCA se queda colgado — try/except global.
-        """
-        try:
-            sender_name = (draft or {}).get("sender_name", "Sales Team")
-            sender_title = (draft or {}).get("sender_title", "Mac Practice")
-
-            # Usar el email editado por el usuario (recipient_input)
-            # Si está vacío, intentar fallback desde el prospect
-            recipient = (recipient_val or "").strip()
-            if not recipient:
-                dm = (prospect_dict or {}).get("decision_maker") or {}
-                recipient = dm.get("email", "") if isinstance(dm, dict) else ""
-
-            # Preparar email para clipboard (siempre disponible)
-            clipboard_text = format_email_for_clipboard(
-                subject=subject or "",
-                body=body or "",
-                sender_name=sender_name,
-                sender_title=sender_title,
-                recipient=recipient,
-            )
-
-            # Intentar envío real si hay recipient
-            sent = False
-            error_msg = ""
-
-            if recipient:
-                try:
-                    for log_text, result in send_real_email(
-                        recipient=recipient,
-                        subject=subject,
-                        body=body,
-                        sender_name=sender_name,
-                    ):
-                        if result is not None:
-                            sent = result.sent
-                            error_msg = result.error
-                except Exception as e:
-                    error_msg = str(e)[:120]
-            else:
-                error_msg = "No recipient email set. Enter one in the 'To (email)' field and try again."
-
-            # Hard fallback on message
-            if not sent and not error_msg:
-                error_msg = "Saved locally. (Gmail connection skipped)"
-
-            # Actualizar pipeline stage del prospect
-            if prospect_dict:
-                prospect_id = prospect_dict.get("id", "")
-                if prospect_id:
-                    try:
-                        storage.move_prospect_stage(
-                            prospect_id, "outreach_sent"
-                        )
-                    except Exception:
-                        pass  # Non-critical
-
-            # UI result
-            show_clipboard = not sent
-            return (
-                *_show_only(stage_send),
-                stepper_html("send"),
-                _send_stage_html(sent=sent, error=error_msg if not sent else ""),
-                gr.update(visible=show_clipboard, value=clipboard_text),
-            )
-
-        except Exception as e:
-            # Fallback absoluto — NUNCA dejar la UI colgada
-            fallback_clipboard = f"Subject: {subject or ''}\n\n{body or ''}"
-            return (
-                *_show_only(stage_send),
-                stepper_html("send"),
-                _send_stage_html(sent=False, error=f"Error inesperado: {str(e)[:80]}"),
-                gr.update(visible=True, value=fallback_clipboard),
-            )
-
-    btn_create_gmail.click(
-        fn=_do_send,
-        inputs=[draft_state, draft_subject_input, draft_body_input, active_prospect_state, recipient_input],
-        outputs=[*all_stage_groups, stepper_display, send_display, clipboard_box],
     )
 
     # ── Navegación: back buttons ──────────────────────────────
@@ -1441,9 +1358,6 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
         "draft_body_input":      draft_body_input,
         "btn_approve":           btn_approve,
         "btn_reject":            btn_reject,
-        "btn_edit":              btn_edit,
-        "btn_create_gmail":      btn_create_gmail,
-        "approved_display":      approved_display,
         "btn_back_to_input":     btn_back_to_input,
         "btn_back_to_pipeline":  btn_back_to_pipeline,
         "send_display":          send_display,

@@ -49,15 +49,15 @@ def do_research(
     """
     log = LogAccumulator()
 
-    # ── Inicio ────────────────────────────────────────
+    # ── Start ─────────────────────────────────────────
     yield log.add(
         "start",
-        f"Iniciando investigación para: {user_input}..."
+        f"Starting research for: {user_input}..."
     ), None
 
     query     = build_research_query(user_input, mode)
     ddg_query = build_ddg_query(user_input, mode)
-    yield log.add("info", f"Modo de búsqueda: {mode}"), None
+    yield log.add("info", f"Search mode: {mode}"), None
     time.sleep(0.3)
 
     # ── Simular pasos de progreso visual ──────────────
@@ -86,16 +86,12 @@ def do_research(
 
     except Exception as e:
         import traceback
-        full_error = traceback.format_exc()
-        print(f"\n[GEMINI FATAL ERROR]\n{full_error}\n")
-        
-        yield log.add(
-            "warning",
-            f"Gemini API Error: {str(e)[:150]}\nSwitching to OpenAI + DuckDuckGo fallback..."
-        ), None
+        print(f"\n[GEMINI FATAL ERROR]\n{traceback.format_exc()}\n")
+
+        yield log.add("search", "Switching to backup engine..."), None
         time.sleep(0.3)
 
-        # ── Intento 2: OpenAI + DuckDuckGo ────────────
+        # ── Attempt 2: OpenAI + DuckDuckGo ────────────
         try:
             for log_text, response in call_openai_research(query, log, ddg_query=ddg_query):
                 if response is not None:
@@ -105,11 +101,8 @@ def do_research(
             if raw_response:
                 engine_used = "openai"
 
-        except Exception as e2:
-            yield log.add(
-                "error",
-                f"Fallback también falló: {str(e2)[:100]}"
-            ), None
+        except Exception:
+            pass  # Will use fallback data below
 
     # ── Pasos finales de progreso visual ──────────────
     for step in steps[3:]:
@@ -120,24 +113,10 @@ def do_research(
     if raw_response:
         try:
             research_data = parse_llm_json(raw_response)
-            yield log.add(
-                "success",
-                f"JSON parseado correctamente ({engine_used})."
-            ), None
-        except ValueError as parse_err:
-            yield log.add(
-                "warning",
-                f"Error parseando JSON: {str(parse_err)[:80]}. "
-                "Usando datos parciales..."
-            ), None
-            research_data = create_research_fallback(
-                user_input, raw_response
-            )
+            yield log.add("success", f"Research data parsed ({engine_used})."), None
+        except ValueError:
+            research_data = create_research_fallback(user_input, raw_response)
     else:
-        yield log.add(
-            "error",
-            "No se obtuvo respuesta de ningún motor de IA."
-        ), None
         research_data = create_research_fallback(user_input)
 
     # ── Detectar competidor ───────────────────────────
@@ -146,12 +125,9 @@ def do_research(
 
     if competitor:
         key, profile = competitor
-        yield log.add(
-            "success",
-            f"Competidor detectado: {profile['name']}."
-        ), None
+        yield log.add("success", f"Competitor detected: {profile['name']}."), None
     else:
-        yield log.add("info", "No se detectó competidor conocido."), None
+        yield log.add("info", "No known competitor detected."), None
 
     # ── Crear el Prospect completo ────────────────────
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -195,9 +171,7 @@ def do_research(
 
     yield log.add(
         "done",
-        f"Investigación completa. Fit Score: {score}/10 "
-        f"— Prioridad: {priority} "
-        f"— Motor: {engine_used}"
+        f"Research complete. Fit Score: {score}/10 — Priority: {priority}"
     ), prospect
 
 

@@ -23,8 +23,8 @@ def _configure():
     """Configura el SDK con la API key."""
     if not GEMINI_API_KEY:
         raise ValueError(
-            "GEMINI_API_KEY no está configurada. "
-            "Agrégala a tu archivo .env"
+            "GEMINI_API_KEY not configured. "
+            "Add it to your .env file"
         )
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -52,7 +52,7 @@ def call_gemini_research(
 
     yield log.add(
         "search",
-        "Consultando Google Search via Gemini Grounding..."
+        "Querying Google Search via Gemini Grounding..."
     ), None
 
     model = genai.GenerativeModel(
@@ -105,7 +105,7 @@ def call_gemini_research(
 
     yield log.add(
         "success",
-        f"Gemini respondió ({len(raw_text)} caracteres)."
+        f"Gemini responded ({len(raw_text)} chars)."
     ), raw_text
 
 
@@ -143,7 +143,7 @@ def call_gemini_outreach(
 
     yield log.add(
         "success",
-        f"Email generado ({len(raw_text)} caracteres)."
+        f"Email generated ({len(raw_text)} chars)."
     ), raw_text
 
 
@@ -162,7 +162,7 @@ def call_gemini_summary(
 
     yield log.add(
         "search",
-        "Analizando pipeline con Gemini..."
+        "Analyzing pipeline with Gemini..."
     ), None
 
     model = genai.GenerativeModel(
@@ -181,5 +181,5 @@ def call_gemini_summary(
 
     yield log.add(
         "success",
-        f"Resumen ejecutivo generado ({len(raw_text)} caracteres)."
+        f"Executive summary generated ({len(raw_text)} chars)."
     ), raw_text

@@ -175,9 +175,6 @@ def _parse_and_enrich_draft(
         draft = create_outreach_fallback(
             prospect.clinic_name, prospect.location
         )
-        draft = create_outreach_fallback(
-            prospect.clinic_name, prospect.location
-        )
 
     # ── Defaults de seguridad ─────────────────────────
     if not draft.get("sender_name"):

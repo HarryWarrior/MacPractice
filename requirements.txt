@@ -13,4 +13,3 @@ httpx
 
 # HF Spaces detecta sdk_version en README.md, no hace falta forzar versiones antiguas aquí
 huggingface-hub
-gradio

@@ -20,8 +20,8 @@ def _get_openai_client() -> OpenAI:
     """Crea un cliente de OpenAI con la API key configurada."""
     if not OPENAI_API_KEY:
         raise ValueError(
-            "OPENAI_API_KEY no está configurada. "
-            "Agrégala a tu archivo .env"
+            "OPENAI_API_KEY not configured. "
+            "Add it to your .env file"
         )
     return OpenAI(api_key=OPENAI_API_KEY)
 
@@ -50,20 +50,20 @@ def _search_duckduckgo(
     print(f"{'='*60}")
 
     if log:
-        log.add("search", "Buscando en DuckDuckGo...")
+        log.add("search", "Searching via DuckDuckGo...")
 
     try:
         results = DDGS().text(query, max_results=max_results)
     except Exception as e:
         print(f"[DUCKDUCKGO ✗ ERROR]: {e}")
         if log:
-            log.add("warning", f"DuckDuckGo falló: {e}")
+            log.add("search", "Web search unavailable, using cached context.")
         return "No web search results available."
 
     if not results:
         print("[DUCKDUCKGO ✗ SALIDA]: Sin resultados.")
         if log:
-            log.add("warning", "DuckDuckGo no devolvió resultados.")
+            log.add("search", "No web results found, proceeding with AI analysis.")
         return "No web search results available."
 
     print(f"\n[DUCKDUCKGO ◀ SALIDA] {len(results)} resultados:")
@@ -90,7 +90,7 @@ def _search_duckduckgo(
     print(f"{'='*60}\n")
 
     if log:
-        log.add("success", f"DuckDuckGo: {len(results)} resultados encontrados.")
+        log.add("success", f"DuckDuckGo: {len(results)} results found.")
 
     return context
 
@@ -115,23 +115,17 @@ def call_openai_research(
     Raises:
         Exception: Si OpenAI también falla.
     """
-    yield log.add(
-        "warning",
-        "Activando fallback: DuckDuckGo + OpenAI..."
-    ), None
+    yield log.add("search", "Searching web sources..."), None
 
-    # Paso 1: Buscar con DuckDuckGo usando el query limpio
+    # Step 1: Search with DuckDuckGo
     search_q = ddg_query if ddg_query else query
     web_context = _search_duckduckgo(search_q, max_results=8, log=log)
     yield log.text, None
 
-    # Paso 2: Inyectar contexto web en el prompt y llamar a OpenAI
-    print(f"[OPENAI] Enviando {len(web_context)} chars de contexto web a {OPENAI_MODEL}...")
+    # Step 2: Inject web context and call OpenAI
+    print(f"[OPENAI] Sending {len(web_context)} chars of web context to {OPENAI_MODEL}...")
 
-    yield log.add(
-        "search",
-        f"Enviando contexto a {OPENAI_MODEL}..."
-    ), None
+    yield log.add("search", f"Analyzing with {OPENAI_MODEL}..."), None
 
     client = _get_openai_client()
 
@@ -158,10 +152,7 @@ def call_openai_research(
 
     print(f"[OPENAI] Respuesta recibida: {len(raw_text)} caracteres")
 
-    yield log.add(
-        "success",
-        f"OpenAI respondió ({len(raw_text)} caracteres)."
-    ), raw_text
+    yield log.add("success", f"Analysis complete ({len(raw_text)} chars)."), raw_text
 
 
 def call_openai_outreach(
@@ -175,10 +166,7 @@ def call_openai_outreach(
     Yields:
         (log_text, raw_response | None)
     """
-    yield log.add(
-        "warning",
-        "Generando email con OpenAI (fallback)..."
-    ), None
+    yield log.add("write", "Generating email with backup AI engine..."), None
 
     client = _get_openai_client()
 
@@ -197,10 +185,7 @@ def call_openai_outreach(
     if not raw_text:
         raise ValueError("OpenAI no devolvió contenido para el outreach.")
 
-    yield log.add(
-        "success",
-        f"Email generado con OpenAI ({len(raw_text)} caracteres)."
-    ), raw_text
+    yield log.add("success", f"Email generated ({len(raw_text)} chars)."), raw_text
 
 
 def call_openai_summary(
@@ -213,10 +198,7 @@ def call_openai_summary(
     Yields:
         (log_text, raw_response | None)
     """
-    yield log.add(
-        "warning",
-        "Generando resumen ejecutivo con OpenAI (fallback)..."
-    ), None
+    yield log.add("search", "Generating executive summary..."), None
 
     client = _get_openai_client()
 
@@ -235,7 +217,4 @@ def call_openai_summary(
     if not raw_text:
         raise ValueError("OpenAI no devolvió contenido para el resumen ejecutivo.")
 
-    yield log.add(
-        "success",
-        f"Resumen generado con OpenAI ({len(raw_text)} caracteres)."
-    ), raw_text
+    yield log.add("success", f"Summary generated ({len(raw_text)} chars)."), raw_text

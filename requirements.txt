@@ -9,8 +9,7 @@ google-genai>=1.0.0
 
 # Fallback IA (OpenAI + DuckDuckGo)
 openai>=1.0.0
-duckduckgo-search>=4.0.0
-
+ddgs
 # Utilidades
 pandas>=2.0.0
 httpx>=0.25.0

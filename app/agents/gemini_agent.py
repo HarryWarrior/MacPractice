@@ -10,6 +10,8 @@ Hugging Face Spaces (conflicto de websockets resuelto).
 
 from typing import Generator
 
+import warnings
+warnings.simplefilter("ignore", FutureWarning)
 import google.generativeai as genai
 
 from app.config import GEMINI_API_KEY, GEMINI_MODEL

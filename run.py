@@ -10,6 +10,9 @@ asegurando que la raíz del proyecto esté en sys.path.
 
 import sys
 import os
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.api_core")
 
 # Asegurar que la raíz del proyecto esté en el path de Python
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))

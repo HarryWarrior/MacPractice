@@ -58,7 +58,7 @@ def call_gemini_research(
     model = genai.GenerativeModel(
         model_name=GEMINI_MODEL,
         system_instruction=RESEARCH_PROMPT,
-        tools="google_search_retrieval",
+        tools="google_search",
     )
 
     response = model.generate_content(query)

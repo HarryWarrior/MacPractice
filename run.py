@@ -20,7 +20,7 @@ if PROJECT_ROOT not in sys.path:
 import gradio as gr
 from ui.app import build_app
 from ui.theme import CSS
-from app.config import GRADIO_HOST, GRADIO_PORT, DEBUG
+from app.config import GRADIO_HOST, GRADIO_PORT, DEBUG, verify_api_keys
 
 
 def main():
@@ -32,6 +32,8 @@ def main():
     print(f"  Port:  {GRADIO_PORT}")
     print(f"  Debug: {DEBUG}")
     print("=" * 50)
+    
+    verify_api_keys()
 
     app = build_app()
     # Forzar 0.0.0.0 para HF Spaces — el env var GRADIO_SERVER_NAME

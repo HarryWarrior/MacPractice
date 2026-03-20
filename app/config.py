@@ -31,9 +31,35 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 BATCH_DELAY_SECONDS = int(os.getenv("BATCH_DELAY_SECONDS", "5"))
 
 # ── Gradio ────────────────────────────────────────────────
-GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
+GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
 GRADIO_PORT = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
 
 # ── Entorno ───────────────────────────────────────────────
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
+
+def verify_api_keys():
+    """Verifica que las variables importantes existan y lanza alertas en log."""
+    import logging
+    logger = logging.getLogger("MacPracticeConfig")
+    if not logger.handlers:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    missing = []
+    
+    if GEMINI_API_KEY:
+        logger.info(f"✅ GEMINI_API_KEY detectada (termina en ...{GEMINI_API_KEY[-4:] if len(GEMINI_API_KEY) > 4 else '***'})")
+    else:
+        logger.warning("❌ GEMINI_API_KEY FALTA EN EL ENTORNO o está vacía. El Agente A (Investigación) y Agente B (Pipeline) fallarán.")
+        missing.append("GEMINI_API_KEY")
+
+    if OPENAI_API_KEY:
+        logger.info(f"✅ OPENAI_API_KEY detectada (termina en ...{OPENAI_API_KEY[-4:] if len(OPENAI_API_KEY) > 4 else '***'})")
+    else:
+        logger.info("ℹ️ OPENAI_API_KEY no detectada. El Agente C (Corrección de tono) y fallbacks no funcionarán si no se provee.")
+
+    if not missing:
+        logger.info("✅ Variables de entorno esenciales cargadas correctamente.")
+    else:
+        logger.warning(f"⚠️ Faltan las siguientes variables críticas: {', '.join(missing)}")
+

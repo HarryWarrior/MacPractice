@@ -695,7 +695,7 @@ def _error_profile_html(message: str) -> str:
 """
 
 
-def _real_research_gen(clinic_text: str, current_prospects: list):
+def _real_research_gen(clinic_text, current_prospects):
     """
     Wraps do_research() del Agente A y mapea sus yields al formato de Gradio.
     Yields 12 valores en cada iteración (consistente para Gradio).
@@ -754,7 +754,7 @@ def _real_research_gen(clinic_text: str, current_prospects: list):
         )
 
 
-def _real_outreach_gen(prospect_dict: dict | None):
+def _real_outreach_gen(prospect_dict):
     """
     Wraps do_outreach() del Agente A y mapea sus yields al formato de Gradio.
     Outputs: outreach_log, *all_stage_groups(6), stepper_display,

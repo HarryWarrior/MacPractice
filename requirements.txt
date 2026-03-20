@@ -2,6 +2,7 @@ python-dotenv
 
 # Frontend
 gradio
+huggingface_hub<0.27.0
 
 # Motor IA Primario (Gemini)
 # google-generativeai usa gRPC/httpx — sin conflicto de websockets con gradio

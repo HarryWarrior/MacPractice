@@ -46,6 +46,7 @@ def main():
         server_port=GRADIO_PORT,
         show_error=True,
         quiet=False,
+        share=True
     )
 
 

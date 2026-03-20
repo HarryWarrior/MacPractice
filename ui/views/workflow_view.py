@@ -88,11 +88,11 @@ def detect_input_mode(text: str) -> str:
 # ──────────────────────────────────────────────
 #  Step animation helpers
 # ──────────────────────────────────────────────
-def _build_initial_steps() -> list:
+def _build_initial_steps() :
     return [{"label": lbl, "status": "pending"} for lbl in RESEARCH_STEPS_LABELS]
 
 
-def _steps_from_log(log_text: str) -> list:
+def _steps_from_log(log_text: str) :
     """
     Analiza el log acumulado y decide qué paso visual marcar como active/done.
     Mapea las líneas del log de do_research() → los 6 pasos del stepper visual.

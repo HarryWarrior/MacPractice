@@ -53,7 +53,7 @@ def _csv_preview_html(items) -> str:
 """
 
 
-def build_batch_section() -> tuple:
+def build_batch_section() :
     """
     Creates the Bulk Research modal.
     Returns: (batch_group, btn_close, btn_confirm, parsed_state, batch_log_box)

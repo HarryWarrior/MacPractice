@@ -261,4 +261,5 @@ if __name__ == "__main__":
             neutral_hue=gr.themes.colors.slate,
             font=[gr.themes.GoogleFont("Plus Jakarta Sans"), "sans-serif"],
         ),
+        share=True
     )

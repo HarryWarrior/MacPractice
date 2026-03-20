@@ -722,7 +722,11 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
 
     # ── Batch research generator ─────────────────────────────
     def _run_batch(items, current_prospects):
+        from ui.components.batch_modal import parse_csv, _EXAMPLE_CSV
+        if items is None:
+            items = parse_csv(_EXAMPLE_CSV)
         if not items:
+            yield current_prospects, None
             return
         prospects    = list(current_prospects or [])
         new_prospects = []   # tracks only those researched in this batch run

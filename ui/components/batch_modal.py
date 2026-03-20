@@ -63,7 +63,7 @@ def build_batch_section() -> tuple:
     except Exception:
         initial_items = []
 
-    parsed_state = gr.State(initial_items)
+    parsed_state = gr.State(None)
 
     with gr.Group(visible=False) as batch_group:
 

@@ -33,7 +33,7 @@ def build_app() -> gr.Blocks:
     ) as demo:
 
         # ── Estado Global ────────────────────────────────────────────────
-        prospects_state       = gr.State([])
+        prospects_state       = gr.State(None)
         active_prospect_state = gr.State(None)
         batch_progress_state  = gr.State(None)
 

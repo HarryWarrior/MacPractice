@@ -146,7 +146,7 @@ def build_batch_review(prospects_state):
     Creates the Batch Review panel (initially hidden).
     Returns: (batch_review_group, batch_queue_state, btn_finish_review)
     """
-    batch_queue_state = gr.State([])
+    batch_queue_state = gr.State(None)
     batch_idx_state   = gr.State(0)
     batch_draft_state = gr.State(None)
 

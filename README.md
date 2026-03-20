@@ -38,7 +38,7 @@ The natural next steps I see are: integrating with HubSpot so researched prospec
 
 4. **Generate Outreach** — The AI produces three personalized messages in one shot: a **sales email** (with 3 subject line variants), a **WhatsApp message** with a one-click link to open the conversation pre-filled on the prospect's number, and a **LinkedIn DM** ready to copy-paste. All three are grounded in the prospect's real data — competitor software, pain points, decision maker name, and growth signals.
 
-5. **Review & Send** — Edit any of the three drafts, approve, and send the email directly via Gmail SMTP. The WhatsApp button opens a pre-filled chat with the prospect instantly. If Gmail is not configured, the email is formatted for easy clipboard copy-paste.
+5. **Review & Send** — Edit any of the three drafts, approve, and send the email directly via Gmail SMTP. The WhatsApp button opens a pre-filled chat with the prospect instantly. When running locally with Gmail credentials, the email is delivered in real time. On Hugging Face Spaces, outbound SMTP ports are restricted by the platform — the email is formatted for clipboard copy-paste instead. A natural next step is replacing `smtplib` with a transactional email API (e.g. SendGrid or the Gmail REST API) which uses standard HTTPS and works on any cloud host.
 
 6. **Pipeline Tracking** — All prospects are tracked on a Kanban board through 5 stages: New → Researched → Outreach Sent → Responded → Meeting Booked.
 

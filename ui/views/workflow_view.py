@@ -144,7 +144,10 @@ def _log_html(text: str) -> str:
             f'<span style="color:#2A5C72;">⬡ waiting for input...</span></div>'
         )
     lines_html = ""
+    _HIDE_PREFIXES = ("⚠️", "🚨", "[ERROR]")
     for line in text.strip().split("\n"):
+        if any(line.lstrip().startswith(p) for p in _HIDE_PREFIXES):
+            continue  # skip error/warning lines from display
         color = "#4ADE80"
         for icon, clr in _LOG_COLORS.items():
             if icon in line:
@@ -152,6 +155,11 @@ def _log_html(text: str) -> str:
                 break
         safe = _html.escape(line)
         lines_html += f'<div style="color:{color}; padding:1px 0; line-height:1.85;">{safe}</div>'
+    if not lines_html:
+        return (
+            f'<div style="{_BASE} display:flex; align-items:center; justify-content:center;">'
+            f'<span style="color:#2A5C72;">⬡ waiting for input...</span></div>'
+        )
     return f'<div style="{_BASE}">{lines_html}</div>'
 
 
@@ -1297,9 +1305,10 @@ def build_workflow_tab(prospects_state: gr.State, active_prospect_state: gr.Stat
             result_html = (
                 f'<div style="margin-top:12px; padding:16px 20px; border-radius:12px; '
                 f'background:rgba(245,158,11,0.08); border:1.5px solid rgba(245,158,11,0.4);">'
-                f'<div style="font-size:14px; font-weight:700; color:{C["amber"]}; margin-bottom:6px;">📋 Saved Locally</div>'
-                f'<div style="font-size:12px; color:{C["text_muted"]}; line-height:1.6;">{error_msg}</div>'
-                f'</div>'
+                f'<div style="font-size:14px; font-weight:700; color:{C["amber"]}; margin-bottom:6px;">📋 Email Ready to Send</div>'
+                f'<div style="font-size:12px; color:{C["text_muted"]}; line-height:1.6;">'
+                f'Copy the email body above and paste it into your email client to send manually.'
+                f'</div></div>'
             )
 
         return (

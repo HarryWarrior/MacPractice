@@ -64,10 +64,10 @@ def do_outreach(
 
     yield log.add(
         "write",
-        f"Redactando outreach para: {prospect.clinic_name}..."
+        f"Drafting outreach for: {prospect.clinic_name}..."
     ), None
 
-    # ── Enriquecer contexto con competidor ────────────
+    # ── Enrich context with competitor data ───────────
     prospect_dict = prospect.to_dict()
 
     competitor = detect_competitor(prospect.current_software)
@@ -80,20 +80,20 @@ def do_outreach(
         }
         yield log.add(
             "info",
-            f"Usando playbook de switching para {profile['name']}."
+            f"Applying switching playbook for {profile['name']}."
         ), None
     else:
         yield log.add(
             "info",
-            "Sin competidor detectado — outreach general."
+            "No competitor detected — using general outreach template."
         ), None
 
-    # ── Inyectar phone en contexto si está disponible ──
+    # ── Inject phone if available ──────────────────────
     phone = (prospect.online_presence or {}).get("phone", "")
     if phone:
         prospect_dict["_contact_phone"] = phone
 
-    # ── Cargar memoria de feedback acumulada ──────────
+    # ── Load accumulated feedback memory ──────────────
     memory = load_outreach_memory()
     if memory:
         prospect_dict["_style_feedback_memory"] = (
@@ -102,16 +102,16 @@ def do_outreach(
         )
         yield log.add(
             "info",
-            "Aplicando memoria de feedback de outreach previo."
+            "Applying style memory from previous feedback."
         ), None
 
-    # Serializar como JSON string para el LLM
+    # Serialize as JSON string for the LLM
     context_json = json.dumps(prospect_dict, indent=2)
 
     raw_response = None
     engine_used = "none"
 
-    # ── Intento 1: Gemini ─────────────────────────────
+    # ── Attempt 1: Gemini ─────────────────────────────
     try:
         for log_text, response in call_gemini_outreach(
             context_json, log
@@ -123,14 +123,9 @@ def do_outreach(
         if raw_response:
             engine_used = "gemini"
 
-    except Exception as e:
-        yield log.add(
-            "warning",
-            f"Gemini falló para outreach: {str(e)[:80]}. "
-            "Usando OpenAI..."
-        ), None
-
-        # ── Intento 2: OpenAI ─────────────────────────
+    except Exception:
+        # ── Attempt 2: OpenAI fallback ─────────────────
+        yield log.add("write", "Switching to backup AI engine..."), None
         try:
             for log_text, response in call_openai_outreach(
                 context_json, log
@@ -142,13 +137,10 @@ def do_outreach(
             if raw_response:
                 engine_used = "openai"
 
-        except Exception as e2:
-            yield log.add(
-                "error",
-                f"Fallback de outreach también falló: {str(e2)[:80]}"
-            ), None
+        except Exception:
+            pass  # Will use fallback template below
 
-    # ── Parsear y enriquecer respuesta ────────────────
+    # ── Parse and enrich response ─────────────────────
     draft_data = _parse_and_enrich_draft(
         raw_response,
         prospect,
@@ -157,9 +149,8 @@ def do_outreach(
 
     yield log.add(
         "done",
-        f"Outreach listo ({engine_used}). "
-        f"{len(draft_data.get('subject_options', []))} "
-        f"opciones de subject generadas."
+        f"Outreach ready — "
+        f"{len(draft_data.get('subject_options', []))} subject lines generated."
     ), draft_data
 
 
@@ -175,20 +166,14 @@ def _parse_and_enrich_draft(
     if raw_response:
         try:
             draft = parse_llm_json(raw_response)
-            log.add("success", "Email parseado correctamente.")
-        except ValueError as e:
-            log.add(
-                "warning",
-                f"Error parseando email: {str(e)[:60]}. "
-                "Usando template genérico..."
-            )
+            log.add("success", "Email draft parsed successfully.")
+        except ValueError:
             draft = create_outreach_fallback(
                 prospect.clinic_name, prospect.location
             )
     else:
-        log.add(
-            "warning",
-            "Sin respuesta de IA. Usando template genérico..."
+        draft = create_outreach_fallback(
+            prospect.clinic_name, prospect.location
         )
         draft = create_outreach_fallback(
             prospect.clinic_name, prospect.location

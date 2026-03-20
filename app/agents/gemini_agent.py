@@ -124,7 +124,7 @@ def call_gemini_outreach(
 
     yield log.add(
         "write",
-        "Generando email personalizado con Gemini..."
+        "Generating personalized email with Gemini..."
     ), None
 
     model = genai.GenerativeModel(

@@ -11,6 +11,5 @@ ddgs
 pandas
 httpx
 
-# HF Spaces instala gradio[oauth]==4.44.1 — no lo pineamos aqui
-# huggingface_hub<0.27.0 evita ImportError de HfFolder en gradio 4.44.1
-huggingface_hub<0.27.0
+# HF Spaces detecta sdk_version en README.md, no hace falta forzar versiones antiguas aquí
+huggingface-hub

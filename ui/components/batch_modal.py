@@ -14,7 +14,7 @@ _EXAMPLE_CSV = """clinic_name,location
 """
 
 
-def _csv_preview_html(items: list) -> str:
+def _csv_preview_html(items) -> str:
     """Renders preview cards for detected clinics."""
     if not items:
         return ""

@@ -49,7 +49,7 @@ def _done_html(total: int) -> str:
 </div>"""
 
 
-def _prospect_summary_html(p: dict) -> str:
+def _prospect_summary_html(p) -> str:
     name     = p.get("clinic_name") or p.get("input", "Unknown")
     location = p.get("location", "")
     score    = p.get("fit_score") or "—"
@@ -92,7 +92,7 @@ def _send_status_html(sent: bool, recipient: str, error: str = "") -> str:
     )
 
 
-def _wa_li_html(draft: dict, phone_override: str = "") -> str:
+def _wa_li_html(draft, phone_override: str = "") -> str:
     """WhatsApp + LinkedIn links from draft."""
     if not draft:
         return ""

@@ -155,7 +155,7 @@ def _log_html(text: str) -> str:
     return f'<div style="{_BASE}">{lines_html}</div>'
 
 
-def _research_steps_html(steps: list) -> str:
+def _research_steps_html(steps) -> str:
     html = '<div class="research-steps-list">'
     for step in steps:
         status = step.get("status", "pending")
@@ -199,10 +199,10 @@ def _input_stage_html(active_mode: str = "name") -> str:
 # ──────────────────────────────────────────────
 #  HTML builders — Profile Stage (tarea 2.7)
 # ──────────────────────────────────────────────
-def _profile_html(data: dict) -> str:
+def _profile_html(data) -> str:
     """
     Renderiza el perfil completo del prospecto.
-    data: dict compatible con Prospect.to_dict()
+    data compatible con Prospect.to_dict()
     """
     if not data:
         return f"<div style='padding:24px; color:{C['text_dim']};'>No data.</div>"
@@ -478,7 +478,7 @@ def _profile_html(data: dict) -> str:
 #  HTML builders — Draft Stage
 # ──────────────────────────────────────────────
 
-def _draft_preview_html(draft: dict, subject: str = "", body: str = "", approved: bool = False) -> str:
+def _draft_preview_html(draft, subject: str = "", body: str = "", approved: bool = False) -> str:
     """Email preview card shown in the left column of the draft stage."""
     if not draft:
         return ""
@@ -515,7 +515,7 @@ def _draft_preview_html(draft: dict, subject: str = "", body: str = "", approved
 """
 
 
-def _draft_hooks_html(draft: dict) -> str:
+def _draft_hooks_html(draft) -> str:
     """Personalization hooks + tone card."""
     if not draft:
         return ""
@@ -544,7 +544,7 @@ def _draft_hooks_html(draft: dict) -> str:
 </div>"""
 
 
-def _whatsapp_linkedin_html(draft: dict) -> str:
+def _whatsapp_linkedin_html(draft) -> str:
     """WhatsApp clickable button and LinkedIn copy-paste DM section."""
     if not draft:
         return ""
@@ -609,7 +609,7 @@ def _whatsapp_linkedin_html(draft: dict) -> str:
 </div>"""
 
 
-def _approved_email_html(draft: dict, subject: str, body: str) -> str:
+def _approved_email_html(draft, subject: str, body: str) -> str:
     """Read-only approved email — displayed in approved_mode_group."""
     if not draft:
         return ""

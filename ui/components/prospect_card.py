@@ -5,7 +5,7 @@ from ui.theme import C, badge_html, score_ring_svg, PRIORITY_COLORS
 from ui.components.competitor_card import competitor_badge_html
 
 
-def prospect_card_html(prospect: dict) -> str:
+def prospect_card_html(prospect) -> str:
     """
     Genera el HTML de una tarjeta de prospecto para el kanban.
     Props: clinic_name, location, practitioners, fit_score, priority, current_software

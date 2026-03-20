@@ -33,7 +33,7 @@ STAGE_LABEL_FROM_ID = {col["id"]: col["label"] for col in KANBAN_COLS}
 #  Builders de HTML puro
 # ──────────────────────────────────────────────
 
-def _build_funnel_html(prospects: list) -> str:
+def _build_funnel_html(prospects) -> str:
     """Renders a visual sales funnel with prospect counts per stage."""
     if not prospects:
         return ""
@@ -82,7 +82,7 @@ def _build_funnel_html(prospects: list) -> str:
 """
 
 
-def _build_metrics_html(prospects: list) -> str:
+def _build_metrics_html(prospects) -> str:
     """Genera el bloque de 5 MetricCards con los datos actuales del pipeline."""
     total = len(prospects)
 
@@ -133,7 +133,7 @@ def _build_metrics_html(prospects: list) -> str:
     return f'<div class="metrics-grid">{cards_html}</div>'
 
 
-def _build_kanban_html(prospects: list) -> str:
+def _build_kanban_html(prospects) -> str:
     """
     Genera el Kanban board con soporte drag & drop.
     Cada columna es un drop target. El payload del drop es prospect_id|stage_id,
@@ -208,7 +208,7 @@ def _build_empty_state_html() -> str:
 """
 
 
-def _build_batch_progress_html(batch_progress: dict | None) -> str:
+def _build_batch_progress_html(batch_progress) -> str:
     if not batch_progress:
         return ""
     current = batch_progress.get("current", 0)
@@ -233,7 +233,7 @@ def _build_batch_progress_html(batch_progress: dict | None) -> str:
 """
 
 
-def _render_top_html(prospects: list, batch_progress: dict | None = None) -> str:
+def _render_top_html(prospects, batch_progress = None) -> str:
     """Renders batch bar + metrics + funnel (top section)."""
     batch_bar = _build_batch_progress_html(batch_progress)
     metrics   = _build_metrics_html(prospects)
@@ -241,7 +241,7 @@ def _render_top_html(prospects: list, batch_progress: dict | None = None) -> str
     return batch_bar + metrics + funnel
 
 
-def _render_kanban_html(prospects: list) -> str:
+def _render_kanban_html(prospects) -> str:
     """Renders pipeline section title + kanban board."""
     count = len(prospects)
     section_title = f"""
@@ -260,7 +260,7 @@ def _render_kanban_html(prospects: list) -> str:
 def _summary_card_html(
     headline: str,
     observations: str,
-    next_steps: list,
+    next_steps,
     watch_out: str,
     is_ai: bool = False,
 ) -> str:
@@ -344,7 +344,7 @@ def _summary_loading_html() -> str:
 </div>"""
 
 
-def _build_static_summary_html(prospects: list) -> str:
+def _build_static_summary_html(prospects) -> str:
     """Generates a static (no-AI) executive summary from pipeline data."""
     total = len(prospects)
 
@@ -372,7 +372,7 @@ def _build_static_summary_html(prospects: list) -> str:
     hot = sum(1 for p in prospects if p.get("priority") == "hot")
 
     skip_sw = {"unknown", "paper-based", "paper", ""}
-    competitors: dict[str, int] = {}
+    competitors = {}
     for p in prospects:
         sw = (p.get("current_software") or "").strip()
         if sw.lower() not in skip_sw:
@@ -412,7 +412,7 @@ def _build_static_summary_html(prospects: list) -> str:
     return _summary_card_html(headline, observations, next_steps, watch_out, is_ai=False)
 
 
-def render_dashboard_html(prospects: list, batch_progress: dict | None = None) -> str:
+def render_dashboard_html(prospects, batch_progress = None) -> str:
     """Legacy function — kept for any external callers."""
     return _render_top_html(prospects, batch_progress) + _render_kanban_html(prospects)
 

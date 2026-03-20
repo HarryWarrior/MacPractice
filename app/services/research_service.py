@@ -73,7 +73,7 @@ def do_research(
     try:
         yield log.add(
             "search",
-            "Conectando con Google Gemini + Search Grounding..."
+            "Connecting to Google Gemini + Search Grounding..."
         ), None
 
         for log_text, response in call_gemini_research(query, log):
@@ -85,9 +85,13 @@ def do_research(
             engine_used = "gemini"
 
     except Exception as e:
+        import traceback
+        full_error = traceback.format_exc()
+        print(f"\n[GEMINI FATAL ERROR]\n{full_error}\n")
+        
         yield log.add(
             "warning",
-            f"Gemini falló: {str(e)[:100]}. Activando fallback..."
+            f"Gemini API Error: {str(e)[:150]}\nSwitching to OpenAI + DuckDuckGo fallback..."
         ), None
         time.sleep(0.3)
 

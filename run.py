@@ -39,12 +39,6 @@ def main():
         server_port=GRADIO_PORT,
         show_error=True,
         quiet=False,
-        css=CSS,
-        theme=gr.themes.Base(
-            primary_hue=gr.themes.colors.emerald,
-            neutral_hue=gr.themes.colors.slate,
-            font=[gr.themes.GoogleFont("Plus Jakarta Sans"), "sans-serif"],
-        ),
     )
 
 

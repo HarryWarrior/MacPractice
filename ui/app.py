@@ -22,7 +22,15 @@ def build_app() -> gr.Blocks:
     Layout: Single-page — Workflow arriba, Kanban + Pipeline abajo.
     Estado global compartido via gr.State.
     """
-    with gr.Blocks(title="Mac Practice · Dental Prospector123124") as demo:
+    with gr.Blocks(
+        title="Mac Practice · Dental Prospector",
+        css=CSS,
+        theme=gr.themes.Base(
+            primary_hue=gr.themes.colors.emerald,
+            neutral_hue=gr.themes.colors.slate,
+            font=[gr.themes.GoogleFont("Plus Jakarta Sans"), "sans-serif"],
+        ),
+    ) as demo:
 
         # ── Estado Global ────────────────────────────────────────────────
         prospects_state       = gr.State([])

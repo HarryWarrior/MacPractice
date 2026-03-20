@@ -58,6 +58,13 @@ def verify_api_keys():
     else:
         logger.info("ℹ️ OPENAI_API_KEY no detectada. El Agente C (Corrección de tono) y fallbacks no funcionarán si no se provee.")
 
+    if GMAIL_SENDER_EMAIL and GMAIL_APP_PASSWORD:
+        logger.info(f"✅ Credenciales de Gmail detectadas (correo: {GMAIL_SENDER_EMAIL})")
+    else:
+        logger.warning("❌ Falta GMAIL_SENDER_EMAIL o GMAIL_APP_PASSWORD. El envío automático de correos fallará.")
+        if not GMAIL_SENDER_EMAIL: missing.append("GMAIL_SENDER_EMAIL")
+        if not GMAIL_APP_PASSWORD: missing.append("GMAIL_APP_PASSWORD")
+
     if not missing:
         logger.info("✅ Variables de entorno esenciales cargadas correctamente.")
     else:

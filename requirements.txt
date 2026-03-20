@@ -13,4 +13,4 @@ ddgs
 # Utilidades
 pandas
 httpx
-websockets>=13.0.0
+websockets

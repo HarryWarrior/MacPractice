@@ -1,15 +1,15 @@
 # ── Backend + IA ──────────────────────────────────────────
-python-dotenv>=1.0.0
+python-dotenv
 
 # Frontend
 gradio
 
 # Motor IA Primario (Gemini — nuevo SDK oficial)
-google-genai>=1.0.0
+google-genai
 
 # Fallback IA (OpenAI + DuckDuckGo)
-openai>=1.0.0
+openai
 ddgs
 # Utilidades
-pandas>=2.0.0
-httpx>=0.25.0
+pandas
+httpx

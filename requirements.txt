@@ -1,16 +1,16 @@
-# ── Backend + IA ──────────────────────────────────────────
 python-dotenv
 
 # Frontend
 gradio
 
-# Motor IA Primario (Gemini — nuevo SDK oficial)
-google-genai
+# Motor IA Primario (Gemini)
+# google-generativeai usa gRPC/httpx — sin conflicto de websockets con gradio
+google-generativeai
 
 # Fallback IA (OpenAI + DuckDuckGo)
 openai
 ddgs
+
 # Utilidades
 pandas
 httpx
-websockets

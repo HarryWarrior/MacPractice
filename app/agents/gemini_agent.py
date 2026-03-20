@@ -1,32 +1,30 @@
 """
 Agente de Gemini — Motor de IA Principal.
-Ref: SPEC.md § 4.3, § 16.1.
 
-Usa Google GenAI SDK (google-genai) con Search Grounding (GoogleSearch)
+Usa google-generativeai SDK con Google Search Retrieval (Search Grounding)
 para investigación web nativa sin scrapers.
 
-Migrado del SDK deprecado (google-generativeai) al nuevo SDK oficial
-(google-genai) siguiendo: https://ai.google.dev/gemini-api/docs/migrate
+Migrado de google-genai a google-generativeai para compatibilidad con
+Hugging Face Spaces (conflicto de websockets resuelto).
 """
 
 from typing import Generator
 
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 from app.config import GEMINI_API_KEY, GEMINI_MODEL
 from app.agents.prompts import RESEARCH_PROMPT, OUTREACH_PROMPT, EXECUTIVE_SUMMARY_PROMPT
 from app.utils.logger import LogAccumulator
 
 
-def _get_client() -> genai.Client:
-    """Crea un cliente de Gemini con la API key."""
+def _configure():
+    """Configura el SDK con la API key."""
     if not GEMINI_API_KEY:
         raise ValueError(
             "GEMINI_API_KEY no está configurada. "
             "Agrégala a tu archivo .env"
         )
-    return genai.Client(api_key=GEMINI_API_KEY)
+    genai.configure(api_key=GEMINI_API_KEY)
 
 
 def call_gemini_research(
@@ -43,7 +41,7 @@ def call_gemini_research(
     Raises:
         Exception: Si la API falla (para activar el fallback).
     """
-    client = _get_client()
+    _configure()
 
     print(f"\n{'='*60}")
     print(f"[GEMINI SEARCH] Query enviado a Google:")
@@ -55,21 +53,14 @@ def call_gemini_research(
         "Consultando Google Search via Gemini Grounding..."
     ), None
 
-    # Nuevo SDK: Search Grounding con GoogleSearch tool
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=query,
-        config=types.GenerateContentConfig(
-            system_instruction=RESEARCH_PROMPT,
-            tools=[
-                types.Tool(
-                    google_search=types.GoogleSearch()
-                )
-            ],
-        ),
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=RESEARCH_PROMPT,
+        tools="google_search_retrieval",
     )
 
-    # Extraer el texto de la respuesta
+    response = model.generate_content(query)
+
     if not response or not response.text:
         raise ValueError(
             "Gemini no devolvió contenido en la respuesta."
@@ -85,14 +76,12 @@ def call_gemini_research(
                 print("[GEMINI] Sin grounding metadata en esta respuesta.")
                 continue
 
-            # Queries que Google ejecutó internamente
             search_queries = getattr(gm, "web_search_queries", None) or []
             if search_queries:
                 print(f"\n[GEMINI] Google Search queries ejecutadas ({len(search_queries)}):")
                 for q in search_queries:
                     print(f"  🔍 {q}")
 
-            # Chunks = páginas analizadas por Gemini
             chunks = getattr(gm, "grounding_chunks", None) or []
             print(f"\n[GEMINI] Páginas analizadas por Gemini: {len(chunks)}")
             for i, chunk in enumerate(chunks, 1):
@@ -103,7 +92,6 @@ def call_gemini_research(
                     print(f"  [{i:02d}] {title}")
                     print(f"        {uri}")
 
-            # Segmentos con respaldo de fuentes
             supports = getattr(gm, "grounding_supports", None) or []
             if supports:
                 print(f"\n[GEMINI] Fragmentos respaldados por fuentes: {len(supports)}")
@@ -130,20 +118,19 @@ def call_gemini_outreach(
     Yields:
         (log_text, raw_response | None)
     """
-    client = _get_client()
+    _configure()
 
     yield log.add(
         "write",
         "Generando email personalizado con Gemini..."
     ), None
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prospect_json,
-        config=types.GenerateContentConfig(
-            system_instruction=OUTREACH_PROMPT,
-        ),
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=OUTREACH_PROMPT,
     )
+
+    response = model.generate_content(prospect_json)
 
     if not response or not response.text:
         raise ValueError(
@@ -169,20 +156,19 @@ def call_gemini_summary(
     Yields:
         (log_text, raw_response | None)
     """
-    client = _get_client()
+    _configure()
 
     yield log.add(
         "search",
         "Analizando pipeline con Gemini..."
     ), None
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=pipeline_json,
-        config=types.GenerateContentConfig(
-            system_instruction=EXECUTIVE_SUMMARY_PROMPT,
-        ),
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=EXECUTIVE_SUMMARY_PROMPT,
     )
+
+    response = model.generate_content(pipeline_json)
 
     if not response or not response.text:
         raise ValueError(

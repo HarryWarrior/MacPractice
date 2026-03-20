@@ -22,6 +22,19 @@ if PROJECT_ROOT not in sys.path:
 # Ahora sí importamos la app de Gradio
 import gradio as gr
 from ui.app import build_app
+
+# --- MONKEY PATCH PARA EL BUG ASQUEROSO DE GRADIO CLIENT ("bool is not iterable") ---
+import gradio_client.utils as client_utils
+original_json_schema_to_python_type = client_utils._json_schema_to_python_type
+
+def patched_json_schema_to_python_type(schema, defs=None):
+    if isinstance(schema, bool):
+        return "Any"
+    return original_json_schema_to_python_type(schema, defs)
+
+client_utils._json_schema_to_python_type = patched_json_schema_to_python_type
+# -------------------------------------------------------------------------------------
+
 from ui.theme import CSS
 from app.config import GRADIO_HOST, GRADIO_PORT, DEBUG, verify_api_keys
 

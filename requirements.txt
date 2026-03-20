@@ -1,10 +1,9 @@
 python-dotenv
 
 # Frontend
-# Versiones exactas para evitar bug "argument of type 'bool' is not iterable"
-# en gradio_client/utils.py que rompe el endpoint /info en HF Spaces
-gradio==4.44.1
-gradio-client==0.9.1
+# HF Spaces ya instala gradio[oauth]==4.44.1 — no lo pineamos aquí
+# para evitar conflictos; huggingface_hub<0.27.0 evita ImportError de HfFolder
+gradio
 huggingface_hub<0.27.0
 
 # Motor IA Primario (Gemini)

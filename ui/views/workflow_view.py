@@ -665,7 +665,7 @@ def _send_stage_html(sent: bool = False, error: str = "") -> str:
 <div class="send-result" style="background:{C['card']}; border:1px solid rgba(245,158,11,0.3);">
     <span class="send-result-icon">📋</span>
     <div class="send-result-title" style="color:{C['amber']};">Draft Saved Locally</div>
-    <div class="send-result-sub">Gmail connection unavailable. Copy the email and send manually.</div>
+    <div class="send-result-sub">{error}</div>
 </div>"""
     return f"""
 <div class="send-result" style="background:{C['surface']}; border:1px solid {C['border']};">

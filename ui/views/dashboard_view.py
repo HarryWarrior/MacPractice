@@ -454,9 +454,6 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
     )
 
     # ── Executive Summary ────────────────────────────────────
-    executive_summary_display = gr.HTML(
-        value=_build_static_summary_html([]),
-    )
     with gr.Row(elem_classes=["mp-summary-row"]):
         with gr.Column(scale=1, min_width=0):
             gr.HTML(
@@ -467,9 +464,13 @@ def build_dashboard_tab(prospects_state: gr.State, batch_progress_state: gr.Stat
         with gr.Column(scale=0, min_width=200):
             btn_ai_summary = gr.Button(
                 "🤖 Regenerate with AI",
-                variant="secondary",
-                elem_classes=["gr-button", "secondary"],
+                variant="primary",
+                elem_classes=["gr-button"],
             )
+
+    executive_summary_display = gr.HTML(
+        value=_build_static_summary_html([]),
+    )
 
     # ── Kanban board ─────────────────────────────────────────
     dashboard_kanban_html = gr.HTML(

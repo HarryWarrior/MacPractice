@@ -39,7 +39,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 
 def verify_api_keys():
-    """Verifica que las variables importantes existan y lanza alertas en log."""
+    """Verifies that important environment variables exist and logs warnings if missing."""
     import logging
     logger = logging.getLogger("MacPracticeConfig")
     if not logger.handlers:
@@ -48,25 +48,25 @@ def verify_api_keys():
     missing = []
     
     if GEMINI_API_KEY:
-        logger.info(f"✅ GEMINI_API_KEY detectada (termina en ...{GEMINI_API_KEY[-4:] if len(GEMINI_API_KEY) > 4 else '***'})")
+        logger.info(f"✅ GEMINI_API_KEY detected (ends with ...{GEMINI_API_KEY[-4:] if len(GEMINI_API_KEY) > 4 else '***'})")
     else:
-        logger.warning("❌ GEMINI_API_KEY FALTA EN EL ENTORNO o está vacía. El Agente A (Investigación) y Agente B (Pipeline) fallarán.")
+        logger.warning("❌ GEMINI_API_KEY IS MISSING or empty. Agent A (Research) and Agent B (Pipeline) will fail.")
         missing.append("GEMINI_API_KEY")
 
     if OPENAI_API_KEY:
-        logger.info(f"✅ OPENAI_API_KEY detectada (termina en ...{OPENAI_API_KEY[-4:] if len(OPENAI_API_KEY) > 4 else '***'})")
+        logger.info(f"✅ OPENAI_API_KEY detected (ends with ...{OPENAI_API_KEY[-4:] if len(OPENAI_API_KEY) > 4 else '***'})")
     else:
-        logger.info("ℹ️ OPENAI_API_KEY no detectada. El Agente C (Corrección de tono) y fallbacks no funcionarán si no se provee.")
+        logger.info("ℹ️ OPENAI_API_KEY not detected. Agent C (Tone Correction) and fallbacks will not work unless provided.")
 
     if GMAIL_SENDER_EMAIL and GMAIL_APP_PASSWORD:
-        logger.info(f"✅ Credenciales de Gmail detectadas (correo: {GMAIL_SENDER_EMAIL})")
+        logger.info(f"✅ Gmail credentials detected (email: {GMAIL_SENDER_EMAIL})")
     else:
-        logger.warning("❌ Falta GMAIL_SENDER_EMAIL o GMAIL_APP_PASSWORD. El envío automático de correos fallará.")
+        logger.warning("❌ Missing GMAIL_SENDER_EMAIL or GMAIL_APP_PASSWORD. Automated email sending will fail.")
         if not GMAIL_SENDER_EMAIL: missing.append("GMAIL_SENDER_EMAIL")
         if not GMAIL_APP_PASSWORD: missing.append("GMAIL_APP_PASSWORD")
 
     if not missing:
-        logger.info("✅ Variables de entorno esenciales cargadas correctamente.")
+        logger.info("✅ Essential environment variables loaded successfully.")
     else:
-        logger.warning(f"⚠️ Faltan las siguientes variables críticas: {', '.join(missing)}")
+        logger.warning(f"⚠️ Missing the following critical variables: {', '.join(missing)}")
 
